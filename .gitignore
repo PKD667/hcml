@@ -1,0 +1,16 @@
+# Object files
+*.o
+obj/
+
+# Binary files
+bin/
+
+# Editor specific files
+.vscode/
+.idea/
+*.swp
+*~
+
+# Debug files
+*.dSYM/
+
