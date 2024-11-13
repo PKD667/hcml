@@ -96,4 +96,24 @@ The `<?hx-on>` tag is used to handle the result of a parent HTMX request. The ta
     <?/hx-on>
 </div>
 ```
+We need to keep in mind that the cond inside the <?hx-on> is executed on the server and doesnt have access to the client side variables. In order to pass the client side variables to the server, we need to use the `pass` attribute of the `hx-on` tag.
 
+```html
+<div hx-post="/endpoint">
+    <?hx-on pass="name">
+        <?if>
+            <?fn id="is_logged_in">
+                </?get name="name">
+            </?fn>
+        </?if>
+        <?then>
+            <?return>
+                <p>Welcome <?get></name></?get> </p>
+            </?return>
+        <?else>
+            <?return>
+                <p>Not logged in</p>
+            </?return>
+        </?then>
+    <?/hx-on>
+</div>

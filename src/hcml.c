@@ -131,12 +131,8 @@ int hcml_eval(struct html_tag* html,struct html_tag** vars) {
                 // We'll start by implementing one layer of depth
                 for (int i = 0; i < html->childs_count; i++) {
                     struct html_tag* child = html->childs[i];
-                    if (strcmp(child->name, "?field") != 0) {
-                        msg(ERROR, "Invalid tag %s inside ?get", child->name);
-                        return 1;
-                    }
 
-                    char* field_name = get_attribute_value(child, "name");
+                    char* field_name = child->name;
                     if (!field_name) {
                         msg(ERROR, "Field tag must have a name attribute");
                         return 1;
