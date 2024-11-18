@@ -21,6 +21,15 @@ struct html_tag* parse_tag(char* html_string,struct html_tag* current_tag,int* i
     //allocate a new tag
     dbg(3,"opening tag");
 
+    // check for comments
+    if (strncmp(html_string+*i,"<!--",4) == 0) {
+        //skip the comment
+        while (strncmp(html_string+*i,"-->",3) != 0) {
+            (*i)++;
+        }
+        return current_tag;
+    }
+
     struct html_tag* new_tag = calloc(1,sizeof(struct html_tag));
     //set the parent
     new_tag->parent = current_tag;
@@ -58,6 +67,12 @@ struct html_tag* parse_tag(char* html_string,struct html_tag* current_tag,int* i
 
     dbg(3,"parsing attributes");
     while (html_string[*i] != '>') {
+        
+        // skip withespaces
+        while (html_string[*i] == ' ') {
+            (*i)++;
+        }
+
         // parse attribute
         dbg(3,"parsing attribute");
         //allocate a new attribute
@@ -112,8 +127,25 @@ struct html_tag* parse_tag(char* html_string,struct html_tag* current_tag,int* i
     return current_tag;
 }
 
-struct html_tag* html_parser(char* html_string)
-{
+struct html_tag* html_parser(char* html_string) {
+
+    // check for doctype
+    if (strncmp(html_string,"<!DOCTYPE",9) == 0) {
+        //skip the doctype
+        int i = 9;
+        while (html_string[i] != '>') {
+            i++;
+        }
+
+        html_string = html_string+i+1;
+    }
+
+    // check if the string is empty
+    if (html_string == NULL || strlen(html_string) == 0) {
+        msg(ERROR,"Error: empty string");
+        return NULL;
+    }
+
     int open_tags_alloc = 16;
     struct html_tag** open_tags = calloc(open_tags_alloc,sizeof(struct html_tag*));
     int open_tags_count = 0;
@@ -157,7 +189,13 @@ struct html_tag* html_parser(char* html_string)
                         //we are closing a child tag
                         //set the current tag to the parent tag
                         
-                        // remove from the open tags
+                        // if the last open ttag isnt the tag we are closing
+                        // Then we have a problem (html is invalid)
+                        if (open_tags[open_tags_count-1] != current_tag) {
+                            msg(ERROR,"Error: Tag conflicting with higher open tag",current_tag->name);
+                            return NULL;
+                        } 
+
                         open_tags_count--;
 
                         current_tag = current_tag->parent;
@@ -168,18 +206,8 @@ struct html_tag* html_parser(char* html_string)
                     // closing tag is not the same as the current tag
                     // assumme its a standalone tag
 
-                    dbg(3,"Found standalone tag");
-
-                    // skip the closing dash
-                    i++;
-
-                    current_tag = parse_tag(html_string,current_tag,&i);
-                    if (current_tag == NULL) {
-                        //error parsing tag
-                        msg(ERROR,"Error parsing tag");
-                    }
-
-                    // check if current tag is in open tags
+                    // if the tag is in the open tags but not the current tag
+                    // then we have a problem
                     int is_open = 0;
                     for (int j = 0; j < open_tags_count; j++) {
                         if (open_tags[j]->name == current_tag->name) {
@@ -193,6 +221,17 @@ struct html_tag* html_parser(char* html_string)
                         // we are closing it
                         msg(ERROR,"Error: Tag conflicting with higher open tag",current_tag->name);
                         return NULL;
+                    }
+
+                    dbg(3,"Found standalone tag");
+
+                    // skip the closing dash
+                    i++;
+
+                    current_tag = parse_tag(html_string,current_tag,&i);
+                    if (current_tag == NULL) {
+                        //error parsing tag
+                        msg(ERROR,"Error parsing tag");
                     }
 
                     // since its standalone we are closing it
@@ -243,13 +282,20 @@ struct html_tag* html_parser(char* html_string)
                 i--;
         }
     }
-    msg(INFO,"Parsing done");
+    dbg(3,"parsing done");
+
+    // cjeck for unclosed tags
+    if (open_tags_count > 1) {
+        msg(ERROR,"Error: unclosed tags");
+        return NULL;
+    }
 
     dbg(3,"open tags count: %d",open_tags_count);
     free(open_tags);
     dbg(3,"open tags freed");
     
     dbg(3,"returning %p",current_tag);
+    
     return current_tag;
 }
 
@@ -288,11 +334,13 @@ int destroy_html(struct html_tag* html)
 
 int create_html(struct html_tag* html,char** code) {
 
-    printf("creating html for %s\n",html->name);
+    dbg(3,"Creating html code for %s",html->name);
 
     int code_alloc = strlen(html->name)+512;
     *code = calloc(code_alloc,sizeof(char));
     int code_len = 0;
+
+    dbg(3,"Allocated %d bytes",code_alloc);
 
     // reursively loop over tags 
     // and create the html code
@@ -302,7 +350,10 @@ int create_html(struct html_tag* html,char** code) {
     strcat(*code,html->name);
 
     // add atributes
+    dbg(3,"Adding %d attributes",html->attributes_count);
     for (int i = 0; i < html->attributes_count; i++) {
+
+        dbg(3,"Adding attribute %s=%s",html->attributes[i]->name,html->attributes[i]->value);
 
         code_len += strlen(html->attributes[i]->name)+strlen(html->attributes[i]->value)+4;
 
@@ -322,18 +373,17 @@ int create_html(struct html_tag* html,char** code) {
 
     code_len++;
     strcat(*code,">");
-    
 
-    
-    code_len += strlen(html->content);
-    if (code_len  >= code_alloc - 16 ) {
-        code_alloc *= 2;
-        *code = realloc(*code,code_alloc);
+    dbg(3,"Adding content %s",html->content);
+
+    if (html->content != NULL) {
+        code_len += strlen(html->content);
+        if (code_len  >= code_alloc - 16 ) {
+            code_alloc *= 2;
+            *code = realloc(*code,code_alloc);
+        }
+        strcat(*code,html->content);
     }
-    // add the content
-    strcat(*code,html->content);
-
-    
 
     // add the childs
     for (int i = 0; i < html->childs_count; i++) {

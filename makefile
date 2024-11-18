@@ -14,10 +14,11 @@ INC_DIR = include
 SRC = $(wildcard $(SRC_DIR)/*.c)
 OBJ = $(SRC:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 
-# Exclude main.c for test builds
-SRC_NO_MAIN = $(filter-out $(SRC_DIR)/main.c, $(SRC))
+
 
 LIBS = cutils
+
+LIBS_A = $(addsuffix .a, $(addprefix lib/$(LIBS)/, $(LIBS)))
 
 # Output executables
 TARGET = $(BIN_DIR)/hcml
@@ -29,20 +30,27 @@ all: $(TARGET)
 # Link object files to create executable
 $(TARGET): $(OBJ)
 	@mkdir -p $(BIN_DIR)
-	$(CC) $(OBJ) -o $(TARGET)
+	$(CC) $(LIBS_A) $(OBJ) -o $(TARGET)
 	@echo "Linking complete!"
 
 # Compile source files into object files
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
+
+	@echo "Making libs : $(LIBS_A)"
+
 	@mkdir -p $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $(LIBS_A) $< -o $@
 	@echo "Compiled $<"
 
-# Compile test source files
-$(OBJ_DIR)/%.o: $(TEST_DIR)/%.c
-	@mkdir -p $(OBJ_DIR)
-	$(CC) $(TEST_FLAGS) -c $< -o $@
-	@echo "Compiled $<"
+
+# Build test executable
+$(TEST_TARGET): $(OBJ_NO_MAIN) libs
+
+	@echo "Using libs : $(LIBS_A)"
+
+	@mkdir -p $(BIN_DIR)
+	$(CC) test.c $(SRC) $(LIBS_A) -o $(TEST_TARGET)
+	@echo "Test binary built!"
 
 # make the libs
 libs:
@@ -57,11 +65,7 @@ libs:
 test: $(TEST_TARGET)
 	./$(TEST_TARGET)
 
-# Build test executable
-$(TEST_TARGET): $(SRC_NO_MAIN)
-	@mkdir -p $(BIN_DIR)
-	$(CC) test.c $^ -o $(TEST_TARGET)
-	@echo "Test binary built!"
+
 
 # Clean build files
 clean:

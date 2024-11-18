@@ -4,21 +4,27 @@
 
 #include "include/hcml.h"
 #include "include/cutils.h"
+#include "include/hcmx.h"
+
+
 
 int test_parser() {
     int failed = 0;
 
-    // Test 1: Basic tag
     {
-        char* input = "<html></html>";
+        // Test 1: Basic tag
+        char* input = "<html></html>\n";
+        printf("TESTING PARSER\n");
+        printf("Input: %s",input);
         struct html_tag* result = html_parser(input);
-        dbg(2,"Result: %p",result);
-        dbg(2,"Result: %s",result->name);
+        printf("Result: %p\n",result);
+        printf("Result: %s\n",result->name);
         if (!result || strcmp(result->name, "html") != 0) {
             msg(ERROR,"Basic tag test failed");
             failed++;
+        } else {
+            msg(INFO,"Basic tag test PASSED");
         }
-        dbg(INFO,"Basic tag test PASSED");
 
         // free result
         destroy_html(result);
@@ -32,8 +38,9 @@ int test_parser() {
             strcmp(result->childs[0]->content, "Hello") != 0) {
             msg(ERROR,"Nested tags test failed");
             failed++;
+        } else {
+            msg(INFO,"Nested tags test PASSED");
         }
-        dbg(INFO,"Nested tags test PASSED");
 
         // free result
         destroy_html(result);
@@ -46,9 +53,19 @@ int test_parser() {
         if (!result || result->attributes_count != 2 ||
             strcmp(result->attributes[0]->name, "class") != 0) {
             msg(ERROR,"Attributes test failed");
+
+            printf("Result: %p\n",result);
+            printf("Attr name: '%s'\n",result->attributes[0]->name);
+            printf("Attr value: '%s'\n",result->attributes[0]->value);
+
+            printf("Attr name: '%s'\n",result->attributes[1]->name);
+            printf("Attr value: '%s'\n",result->attributes[1]->value);
+
+
             failed++;
+        } else {
+            msg(INFO,"Attributes test PASSED");
         }
-        dbg(INFO,"Attributes test PASSED");
 
         // free result
         destroy_html(result);
@@ -60,11 +77,89 @@ int test_parser() {
         struct html_tag* result = html_parser(input);
         if (result != NULL) {
             msg(ERROR,"Malformed test failed");
+            char* code;
+            create_html(result,&code);
+            printf("Result: %p\n",result);
+            printf("Result: %s\n",result->name);
+            printf("Result: %s\n",code);
             failed++;
+        } else {
+            msg(INFO,"Malformed test PASSED");
         }
-        msg(INFO,"Malformed test PASSED");
+        
         // free result
         destroy_html(result);
+    }
+
+    // Test 5: Self-closing tag
+    {
+        char* input = "<br/>";
+        struct html_tag* result = html_parser(input);
+        if (!result || strcmp(result->name, "br") != 0 || result->childs_count != 0) {
+            msg(ERROR,"Self-closing tag test FAILED");
+            failed++;
+        } else {
+            msg(INFO,"Self-closing tag test PASSED");
+        }
+
+        // free result
+        destroy_html(result);
+    }
+
+    // Test 6: Comment handling
+    {
+        char* input = "<!-- This is a comment -->";
+        struct html_tag* result = html_parser(input);
+        if (result != NULL) {
+            msg(ERROR,"Comment test FAILED");
+            failed++;
+            // free result
+            destroy_html(result);
+        } else {
+            msg(INFO,"Comment test PASSED");
+        }
+    }
+
+    // Test 7: Doctype declaration
+    {
+        char* input = "<!DOCTYPE html>";
+        struct html_tag* result = html_parser(input);
+        if (result != NULL) {
+            msg(ERROR,"Doctype test FAILED");
+            failed++;
+            // free result
+            destroy_html(result);
+        } else {
+            msg(INFO,"Doctype test PASSED");
+        }
+    }
+
+    // Test 8: Unclosed tag
+    {
+        char* input = "<div><p>Hello";
+        struct html_tag* result = html_parser(input);
+        if (result != NULL) {
+            msg(ERROR,"Unclosed tag test FAILED");
+            failed++;
+            // free result
+            destroy_html(result);
+        } else {
+            msg(INFO,"Unclosed tag test PASSED");
+        }
+    }
+
+    // Test 9: Wrongly nested tags
+    {
+        char* input = "<b><i>Text</b></i>";
+        struct html_tag* result = html_parser(input);
+        if (result != NULL) {
+            msg(ERROR,"Wrongly nested tags test FAILED");
+            failed++;
+            // free result
+            destroy_html(result);
+        } else {
+            msg(INFO,"Wrongly nested tags test PASSED");
+        }
     }
 
     printf("%s: %d tests failed\n", failed ? "FAIL" : "SUCCESS", failed);
@@ -83,8 +178,9 @@ int test_getters() {
         if (!found || strcmp(found->content, "Hello") != 0) {
             msg(ERROR,"Basic get_tag_by_id failed");
             failed++;
+        } else {
+            msg(INFO,"Basic get_tag_by_id PASSED");
         }
-        msg(INFO,"Basic get_tag_by_id PASSED");
 
         destroy_html(root);
     }
@@ -99,8 +195,9 @@ int test_getters() {
             strcmp(found[0]->content, "First") != 0) {
             msg(ERROR,"get_tags_by_name multiple tags failed");
             failed++;
+        } else {
+            msg(INFO,"get_tags_by_name multiple tags PASSED");
         }
-        msg(INFO,"get_tags_by_name multiple tags PASSED");
 
         free(found);  // Don't forget this!
         destroy_html(root);
@@ -115,8 +212,9 @@ int test_getters() {
         if (found != NULL) {
             msg(ERROR,"Non-existent ID test failed");
             failed++;
+        } else {
+            msg(INFO,"Non-existent ID test PASSED");
         }
-        msg(INFO,"Non-existent ID test PASSED");
 
         destroy_html(root);
     }
@@ -129,9 +227,13 @@ int test_getters() {
         struct html_tag* found = get_tag_by_id(root, "deep");
         if (!found || strcmp(found->content, "Found me!") != 0) {
             msg(ERROR,"Deep nesting search failed");
+            printf("Found: %p\n", found);
+            printf("Found: %s\n", found->content);
             failed++;
+        } else {
+            msg(INFO,"Deep nesting search PASSED");
         }
-        msg(INFO,"Deep nesting search PASSED");
+        
 
         destroy_html(root);
     }
@@ -145,9 +247,17 @@ int test_getters() {
 int main() {
 
     DEBUG = 4;
+
     
-    test_parser();
-    test_getters();
+    int parser_f = test_parser();
+    if (parser_f) {
+        msg(ERROR,"%d parser tests failed", parser_f);
+    }
+    
+    int getter_f = test_getters();
+    if (getter_f) {
+        msg(ERROR,"%d getter tests failed", getter_f);
+    }
 
     return 0;
 

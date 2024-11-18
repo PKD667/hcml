@@ -3,7 +3,7 @@ The CUtils Library is a collection of C functions.
 It can be used for any C project, but it was originally made for the Libspm/CCCP project.
 It is licensed under the GNU General Public License v3.0.
 
- * Copyright (C) 2019-2020  PKD <pkd@sovietlinxu.ml>
+ * Copyright (C) 2019-2024 PKD <pkd@unsuspicious.org>
 
 */
 #include "string.h"
@@ -96,7 +96,8 @@ enum level {
 };
 
 extern int DEBUG;
-extern char* DEBUG_UNIT;
+extern char* DEBUG_FN;
+extern char* DEBUG_FILE;
 
 // a tool to have cool terminal output
 int msg(enum level msgLevel, const char* message,...);
