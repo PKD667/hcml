@@ -1,12 +1,17 @@
+#include "assert.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <fcntl.h>
 
 #include "include/hcml.h"
 #include "include/cutils.h"
 #include "include/hcmx.h"
 
 
+/*
+ BASE HTML PARSER TEST SUITE
+*/
 
 int test_parser() {
     int failed = 0;
@@ -48,7 +53,7 @@ int test_parser() {
 
     // Test 3: Attributes
     {
-        char* input = "<div class=\"test\" id=\"myid\"></div>";
+        char* input = "<div class=\"test\" id=\"myid\" ></div>";
         struct html_tag* result = html_parser(input);
         if (!result || result->attributes_count != 2 ||
             strcmp(result->attributes[0]->name, "class") != 0) {
@@ -87,6 +92,21 @@ int test_parser() {
             msg(INFO,"Malformed test PASSED");
         }
         
+        // free result
+        destroy_html(result);
+    }
+
+    // test for tag with content
+    {
+        char* input = "<div>hello</div>";
+        struct html_tag* result = html_parser(input);
+        if (!result || strcmp(result->content, "hello") != 0) {
+            msg(ERROR,"Tag with content test FAILED");
+            failed++;
+        } else {
+            msg(INFO,"Tag with content test PASSED");
+        }
+
         // free result
         destroy_html(result);
     }
@@ -166,6 +186,54 @@ int test_parser() {
     return failed;
 }
 
+
+
+int test_file(char* infile, char* outfile) {
+
+    
+    char *file_content;
+    long file_size = rdfile(infile,&file_content);
+
+    if (file_size < 0) {
+        msg(ERROR,"Error: could not read file %s (%d)","test_file",file_size);
+        return 1;
+    }
+
+    struct html_tag* root = html_parser(file_content);
+
+    assert(root != NULL);
+    assert(strcmp(root->name, "html") == 0);
+
+    // create_html(root, &file_content);
+
+    char* new_html = NULL;
+    int size = create_html(root, &new_html);
+
+    printf("New html: %s\n", new_html);
+
+    // re parse
+
+    struct html_tag* new_root = html_parser(new_html);
+
+    assert(new_root != NULL);
+
+    assert(strcmp(new_root->name, "html") == 0);
+
+    // write to file
+    int wr = wrnfile(outfile,new_html,size);
+    if (wr < 0) {
+        msg(ERROR,"Error: could not write file %s (%d)","test2.html",wr);
+        return 1;
+    }
+
+    destroy_html(root);
+    destroy_html(new_root);
+
+    return 0;
+}
+
+
+
 int test_getters() {
     int failed = 0;
 
@@ -242,6 +310,66 @@ int test_getters() {
     return failed;
 }
 
+/*
+ SPECIAL HCML TESTS
+*/
+
+int test_hcml() {
+    int failed = 0;
+
+    // Test 1: HCML parsing 
+    {
+        char* input = "<html><?set name=\"test\">HELLO</?set></html>";
+        struct html_tag* root = html_parser(input);
+
+        int res = hcml_compile(root);
+        if (res != 0) {
+            msg(ERROR,"HCML parsing test failed");
+            failed++;
+        } else {
+            msg(INFO,"HCML parsing test PASSED");
+        }
+    }
+
+    // Test 2: set and get
+    {
+        char* input = "<html><?set id=\"test\" type=\"div\">Hello</?set><?get id=\"test\"></?get></html>";
+        struct html_tag* root = html_parser(input);
+        int res = hcml_compile(root);
+
+        if (res != 0) {
+            msg(ERROR,"HCML set and get test failed");
+            failed++;
+        } else {
+            msg(INFO,"HCML set and get test PASSED");
+        }
+
+        char* compiled;
+        int size = create_html(root, &compiled);
+        printf("Compiled: %s\n", compiled);
+    }
+
+    // Test 3: nested set and get
+    {
+        char* input = "<html><?set name=\"var\"><in> In variable </in></?set><?get id=\"var\"><in/></?get><html>";
+        struct html_tag* root = html_parser(input);
+        int res = hcml_compile(root);
+
+        if (res != 0) {
+            msg(ERROR,"HCML nested set and get test failed");
+            failed++;
+        } else {
+            msg(INFO,"HCML nested set and get test PASSED");
+        }
+
+        char* compiled;
+        int size = create_html(root, &compiled);
+        printf("Compiled: %s\n", compiled);
+    }
+
+    return failed;
+}
+
 
 
 int main() {
@@ -257,6 +385,13 @@ int main() {
     int getter_f = test_getters();
     if (getter_f) {
         msg(ERROR,"%d getter tests failed", getter_f);
+    }
+
+    // HCML tests
+
+    int hcml_f = test_hcml();
+    if (hcml_f) {
+        msg(ERROR,"%d HCML tests failed", hcml_f);
     }
 
     return 0;

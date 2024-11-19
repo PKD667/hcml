@@ -50,7 +50,7 @@ struct html_tag* parse_tag(char* html_string,struct html_tag* current_tag,int* i
     //copy the name
     int j = 0;
     (*i)++;
-    while (html_string[*i] != ' ' && html_string[*i] != '>') {
+    while (html_string[*i] != ' ' && html_string[*i] != '>' && html_string[*i] != '/') {
 
         if (j >= name_alloc) {
             name_alloc *= 2;
@@ -64,14 +64,15 @@ struct html_tag* parse_tag(char* html_string,struct html_tag* current_tag,int* i
 
     dbg(3,"tag name is %s",current_tag->name);
 
+    // skip whitespaces
+    while (html_string[*i] == ' ' || html_string[*i] == '/') {
+
+        (*i)++;
+    }
+
 
     dbg(3,"parsing attributes");
     while (html_string[*i] != '>') {
-        
-        // skip withespaces
-        while (html_string[*i] == ' ') {
-            (*i)++;
-        }
 
         // parse attribute
         dbg(3,"parsing attribute");
@@ -122,6 +123,12 @@ struct html_tag* parse_tag(char* html_string,struct html_tag* current_tag,int* i
 
         //skip the closing quote
         (*i)++;
+
+        // skip withespaces
+        while (html_string[*i] == ' ' || html_string[*i] == '/') {
+            (*i)++;
+        }
+
     }
 
     return current_tag;
@@ -158,9 +165,14 @@ struct html_tag* html_parser(char* html_string) {
     {
         dbg(3,"c: %c , string: %s , in->%s",html_string[i],in_tag ? "tag" : "content",current_tag ? current_tag->name : "NULL");
 
+        // skip any whitespace or newlines
+        if (html_string[i] == ' ' || html_string[i] == '\n' || html_string[i] == '\r') {
+            continue;
+        }
 
         if (html_string[i] == '<') {
             //we are in a tag
+            dbg(3,"tag start");
             in_tag = 1;
             //check if we are closing a tag
             if (html_string[i+1] == '/') {
@@ -174,6 +186,7 @@ struct html_tag* html_parser(char* html_string) {
                 ) == 0) {
                     
                     dbg(3,"closing tag is valid");
+                    current_tag->self_closing = 0;
 
                     //print skipped chars
                     dbg(3,"skipping : %.*s",(int)strlen(current_tag->name)+2,html_string+i);
@@ -184,6 +197,8 @@ struct html_tag* html_parser(char* html_string) {
                         //we are closing the root tag
                         //we are done parsing
                         dbg(3,"closing root tag");
+                        // remove from open tags
+                        open_tags_count--;
                         break;
                     } else {
                         //we are closing a child tag
@@ -203,39 +218,9 @@ struct html_tag* html_parser(char* html_string) {
                     }
 
                 } else {
-                    // closing tag is not the same as the current tag
-                    // assumme its a standalone tag
-
-                    // if the tag is in the open tags but not the current tag
-                    // then we have a problem
-                    int is_open = 0;
-                    for (int j = 0; j < open_tags_count; j++) {
-                        if (open_tags[j]->name == current_tag->name) {
-                            is_open = 1;
-                            break;
-                        }
-                    }
-
-                    if (is_open) {
-                        // the tag is not open
-                        // we are closing it
-                        msg(ERROR,"Error: Tag conflicting with higher open tag",current_tag->name);
-                        return NULL;
-                    }
-
-                    dbg(3,"Found standalone tag");
-
-                    // skip the closing dash
-                    i++;
-
-                    current_tag = parse_tag(html_string,current_tag,&i);
-                    if (current_tag == NULL) {
-                        //error parsing tag
-                        msg(ERROR,"Error parsing tag");
-                    }
-
-                    // since its standalone we are closing it
-                    current_tag = current_tag->parent;
+                    //the closing tag is invalid
+                    msg(ERROR,"Error: invalid closing tag");
+                    return NULL;
                 }
             } else {
                 //we are opening a tag
@@ -246,6 +231,14 @@ struct html_tag* html_parser(char* html_string) {
                     return NULL;
                 }
 
+                // if is a self closing tag
+                if (html_string[i-1] == '/') {
+                    dbg(3,"self closing tag");
+                    current_tag->self_closing = 1;
+                    current_tag = current_tag->parent;
+                    continue;
+                }
+
                 //check if we need to reallocate the open tags array
                 if (open_tags_count >= open_tags_alloc) {
                     open_tags_alloc *= 2;
@@ -253,12 +246,10 @@ struct html_tag* html_parser(char* html_string) {
                 }
 
                 //add the tag to the open tags
+                dbg(3,"adding tag %s to open tags",current_tag->name);
                 open_tags[open_tags_count] = current_tag;
                 open_tags_count++;
             }
-        } else if (html_string[i] == '>') {
-            //we are out of a tag
-            dbg(3,"out of tag");
         } else {
                 //we are in a tag content
                 //allocate the content
@@ -285,7 +276,7 @@ struct html_tag* html_parser(char* html_string) {
     dbg(3,"parsing done");
 
     // cjeck for unclosed tags
-    if (open_tags_count > 1) {
+    if (open_tags_count > 0) {
         msg(ERROR,"Error: unclosed tags");
         return NULL;
     }
@@ -332,86 +323,146 @@ int destroy_html(struct html_tag* html)
     return 0;
 }
 
-int create_html(struct html_tag* html,char** code) {
 
-    dbg(3,"Creating html code for %s",html->name);
+int create_html(struct html_tag* html, char** code) {
 
-    int code_alloc = strlen(html->name)+512;
-    *code = calloc(code_alloc,sizeof(char));
+    dbg(3, "Creating html code for %s", html->name);
+
+    int code_alloc = strlen(html->name) + 512;
+    dbg(3, "Allocating %d bytes", code_alloc);
+    *code = calloc(code_alloc, sizeof(char));
+    if (*code == NULL) {
+        msg(ERROR, "Error: Allocation failed");
+        return -1;
+    }
     int code_len = 0;
 
-    dbg(3,"Allocated %d bytes",code_alloc);
+    dbg(3, "Allocated %d bytes", code_alloc);
 
-    // reursively loop over tags 
-    // and create the html code
-    // add the tag name
-    code_len += strlen(html->name)+1;
-    strcat(*code,"<");
-    strcat(*code,html->name);
+    // Add the opening tag
+    int required_size = code_len + strlen("<") + strlen(html->name) + 1;
+    if (required_size >= code_alloc) {
+        code_alloc = required_size + 512;
+        *code = realloc(*code, code_alloc);
+        if (*code == NULL) {
+            msg(ERROR, "Error: Reallocation failed");
+            return -1;
+        }
+    }
+    strcat(*code, "<");
+    strcat(*code, html->name);
+    code_len = required_size - 1;
 
-    // add atributes
-    dbg(3,"Adding %d attributes",html->attributes_count);
+    // Add attributes
+    dbg(3, "Adding %d attributes", html->attributes_count);
     for (int i = 0; i < html->attributes_count; i++) {
 
-        dbg(3,"Adding attribute %s=%s",html->attributes[i]->name,html->attributes[i]->value);
+        dbg(3, "Adding attribute %s=%s", html->attributes[i]->name, html->attributes[i]->value);
 
-        code_len += strlen(html->attributes[i]->name)+strlen(html->attributes[i]->value)+4;
-
-        if (code_len >= code_alloc - 16) {
-            code_alloc *= 2;
-            *code = realloc(*code,code_alloc);
+        required_size = code_len + strlen(" ") + strlen(html->attributes[i]->name) + strlen("=\"") + strlen(html->attributes[i]->value) + strlen("\"") + 1;
+        if (required_size >= code_alloc) {
+            code_alloc = required_size + 512;
+            *code = realloc(*code, code_alloc);
+            if (*code == NULL) {
+                msg(ERROR, "Error: Reallocation failed");
+                return -1;
+            }
         }
 
-        strcat(*code," ");
-        strcat(*code,html->attributes[i]->name);
-        strcat(*code,"=\"");
-        strcat(*code,html->attributes[i]->value);
-        strcat(*code,"\"");
-
-        
+        strcat(*code, " ");
+        strcat(*code, html->attributes[i]->name);
+        strcat(*code, "=\"");
+        strcat(*code, html->attributes[i]->value);
+        strcat(*code, "\"");
+        code_len = required_size - 1;
     }
 
-    code_len++;
-    strcat(*code,">");
+    // Close the opening tag
+    required_size = code_len + 2;
+    if (required_size >= code_alloc) {
+        code_alloc = required_size + 512;
+        *code = realloc(*code, code_alloc);
+        if (*code == NULL) {
+            msg(ERROR, "Error: Reallocation failed");
+            return -1;
+        }
+    }
 
-    dbg(3,"Adding content %s",html->content);
+    if (html->self_closing) {
+        strcat(*code, "/>");
+        code_len = required_size;
 
+        if (html->content != NULL) {
+            msg(WARNING, "Warning: Self closing tag %s has content", html->name);
+        } 
+
+        if (html->childs_count > 0) {
+            msg(WARNING, "Warning: Self closing tag %s has child tags", html->name);
+        }
+
+        return code_len;
+    } 
+
+    strcat(*code, ">");
+    code_len = required_size - 1;
+
+    // Add content if any
     if (html->content != NULL) {
-        code_len += strlen(html->content);
-        if (code_len  >= code_alloc - 16 ) {
-            code_alloc *= 2;
-            *code = realloc(*code,code_alloc);
+        dbg(3, "Adding content %s", html->content);
+        required_size = code_len + strlen(html->content) + 1;
+        if (required_size >= code_alloc) {
+            code_alloc = required_size + 512;
+            *code = realloc(*code, code_alloc);
+            if (*code == NULL) {
+                msg(ERROR, "Error: Reallocation failed");
+                return -1;
+            }
         }
-        strcat(*code,html->content);
+        strcat(*code, html->content);
+        code_len = required_size - 1;
     }
 
-    // add the childs
+    // Add the child tags recursively
     for (int i = 0; i < html->childs_count; i++) {
-        
+
         char* child_code = NULL;
-        int child_size = create_html(html->childs[i],&child_code);
-
-        code_len += child_size;
-
-        if (code_len >= code_alloc - 16) {
-            code_alloc *= 2;
-            *code = realloc(*code,code_alloc);
+        int child_size = create_html(html->childs[i], &child_code);
+        if (child_size < 0) {
+            msg(ERROR, "Error: Failed to create child HTML");
+            return -1;
         }
 
-        strcat(*code,child_code);
+        required_size = code_len + child_size + 1;
+        if (required_size >= code_alloc) {
+            code_alloc = required_size + 512;
+            *code = realloc(*code, code_alloc);
+            if (*code == NULL) {
+                msg(ERROR, "Error: Reallocation failed");
+                free(child_code);
+                return -1;
+            }
+        }
+
+        strcat(*code, child_code);
+        code_len = required_size - 1;
 
         free(child_code);
     }
 
-    code_len += strlen(html->name)+3;
-    if (code_len >= code_alloc - 16) {
-        code_alloc *= 2;
-        *code = realloc(*code,code_alloc);
+    // Add the closing tag
+    required_size = code_len + strlen("</") + strlen(html->name) + strlen(">") + 1;
+    if (required_size >= code_alloc) {
+        code_alloc = required_size + 512;
+        *code = realloc(*code, code_alloc);
+        if (*code == NULL) {
+            msg(ERROR, "Error: Reallocation failed");
+            return -1;
+        }
     }
+    strcat(*code, "</");
+    strcat(*code, html->name);
+    strcat(*code, ">");
+    code_len = required_size - 1;
 
-    // add the closing tag
-    strcat(*code,"</");
-    strcat(*code,html->name);
-    strcat(*code,">");
     return code_len;
 }

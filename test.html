@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Complex HTML Document</title>
+    <style>
+        /* Internal CSS styles */
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
+        header, footer { background-color: #333; color: #fff; padding: 20px; }
+        nav ul { list-style-type: none; padding: 0; }
+        nav ul li { display: inline; margin-right: 15px; }
+        main { padding: 20px; }
+        aside { background-color: #f4f4f4; padding: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        table, th, td { border: 1px solid #000; }
+        th, td { padding: 10px; text-align: left; }
+        form { margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>My Complex HTML Document</h1>
+        <nav>
+            <ul>
+                <li><a href="#">Home</a></li>
+                <li><a href="#">Articles</a></li>
+                <li><a href="#">Gallery</a></li>
+                <li><a href="#">Contact</a></li>
+            </ul>
+        </nav>
+    </header>
+    <main>
+        <section>
+            <article>
+                <h2>Article Title One</h2>
+                <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>
+                <img src="image1.jpg" alt="Sample Image"/>
+                <video controls width="250">
+                    <source src="video1.mp4" type="video/mp4"/>
+                    Your browser does not support the video tag.
+                </video>
+            </article>
+        </section>
+        <section>
+            <h2>Data Table</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th rowspan="2">Name</th>
+                        <th colspan="2">Contact Info</th>
+                    </tr>
+                    <tr>
+                        <th>Email</th>
+                        <th>Phone</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>John Doe</td>
+                        <td>john@example.com</td>
+                        <td>555-1234</td>
+                    </tr>
+                    <tr>
+                        <td>Jane Smith</td>
+                        <td>jane@example.com</td>
+                        <td>555-5678</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section>
+            <h2>Feedback Form</h2>
+            <form action="/submit" method="post">
+                <label for="fname">First name:</label><br/>
+                <input type="text" id="fname" name="fname"/> <br/> <br/>
+                <label for="lname">Last name:</label><br/>
+                <input type="text" id="lname" name="lname"/> <br/> <br/>
+                <label for="email">Email:</label> <br/>
+                <input type="email" id="email" name="email"/> <br/> <br/>
+                <label>Gender:</label> <br/>
+                <input type="radio" id="male" name="gender" value="male"/>
+                <label for="male">Male</label> <br/>
+                <input type="radio" id="female" name="gender" value="female"/>
+                <label for="female">Female</label><br/><br/>
+                <label for="comments">Comments:</label><br/>
+                <textarea id="comments" name="comments" rows="5" cols="30"></textarea><br/><br/>
+                <input type="submit" value="Submit"/>
+            </form>
+        </section>
+        <aside>
+            <h3>Related Links</h3>
+            <ul>
+                <li><a href="#">Related Article 1</a></li>
+                <li><a href="#">Related Article 2</a></li>
+            </ul>
+        </aside>
+    </main>
+    <footer>
+        <p>&copy; 2023 My Complex HTML Document</p>
+        <p>Contact: <a href="mailto:info@example.com">info@example.com</a></p>
+        <ul>
+            <li><a href="#">Twitter</a></li>
+            <li><a href="#">Facebook</a></li>
+        </ul>
+    </footer>
+    <script>
+        // JavaScript code for interactivity
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Page loaded');
+        });
+    </script>
+</body>
+</html>

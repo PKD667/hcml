@@ -167,3 +167,34 @@ int insert_tag(struct html_tag* parent, struct html_tag* child, int index) {
 
     return 0;
 }
+
+// remove a tag
+int pop_tag(struct html_tag* tag) {
+    if (tag == NULL) {
+        return 1;
+    }
+    if (tag->parent == NULL) {
+        return 1;
+    }
+
+    // get the index of the tag
+    int index = get_index(tag);
+
+    // remove the tag
+    if (index == -1) {
+        return 1;
+    }
+
+    // shift the tags
+    for (int i = index; i < tag->parent->childs_count - 1; i++) {
+        tag->parent->childs[i] = tag->parent->childs[i + 1];
+    }
+
+    // decrease the count
+    tag->parent->childs_count--;
+
+    // free the tag
+    destroy_html(tag);
+
+    return 0;
+}

@@ -15,32 +15,31 @@ The custom markup language is a simple language that allows you to define routes
 ### Example
 
 ```html
-<?set name="title">
+<?set id="title">
     My Awesome Web Page
 </?set>
 
-<?set name="user">
+<?set id="user">
     <name>John Doe</name>
     <loggedIn>true</loggedIn>
 </?set>
 
 <html>
     <head>
-        <title><?get name="title"></?get></title>
+        <title><?get id="title"></?get></title>
     </head>
     <body>
-        <h1><?get name="title"></?get></h1>
-        <p>Welcome, <?get name="user"><name></name></?get>!</p>
-
+        <h1><?get id="title"></?get></h1>
+        <p>Welcome, <?get id="user"><name></name></?get>!</p>
         <div hx-post="/update">
             <button>Click Me</button>
             <?hx-on>
                 <?if>
-                    <?get name="user"><loggedIn></loggedIn></?get>
+                    <?get id="user"><loggedIn></loggedIn></?get>
                 </?if>
                 <?then>
                     <?return>
-                        <p>Thank you for clicking the button, <?get name="user"><name></name></?get>!</p>
+                        <p>Thank you for clicking the button, <?get id="user"><name></name></?get>!</p>
                     </?return>
                 <?else>
                     <?return>
@@ -52,3 +51,38 @@ The custom markup language is a simple language that allows you to define routes
     </body>
 </html>
 ```
+
+**Evaluates to:**
+
+```html
+<html>
+    <head>
+        <title>My Awesome Web Page</title>
+    </head>
+    <body>
+        <h1>My Awesome Web Page</h1>
+        <p>Welcome, John Doe!</p>
+        <div hx-post="/update">
+            <button>Click Me</button>
+        </div>
+    </body>
+</html>
+```
+
+**On the server side:**
+```html
+<?if>
+    <?get id="user"><loggedIn></loggedIn></?get>
+</?if>
+<?then>
+    <?return>
+        <p>Thank you for clicking the button, <?get id="user"><name></name></?get>!</p>
+    </?return>
+<?else>
+    <?return>
+        <p>Please log in to continue.</p>
+    </?return>
+<?/then>
+```
+
+**
