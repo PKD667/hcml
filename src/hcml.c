@@ -5,61 +5,18 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdbool.h>
+
 
 #include "../include/hcml.h"
 #include "../include/cutils.h"
 #include "../include/hcmx.h"
 
-
-int get_hcmx(char* path,char** html_str,struct htmx_context* ctx) {
-
-    // read the file
-    char* file_content;
-    int file_size = rdfile(path,&file_content);
-    if (file_size < 0) {
-        msg(ERROR,"Error: could not read file %s (%d)",path,file_size);
-        return 1;
-    }
-
-    // parse the file content
-    struct html_tag* html = html_parser(file_content);
-    if (html == NULL) {
-        msg(ERROR,"Error: could not parse file %s",path);
-        return 1;
-    }
-
-    // process the htmx tags
-    ctx = process_htmx(html);
-
-    // compile the hcml
-    int compile_res = hcml_compile(html);
-    if (compile_res != 0) {
-        msg(ERROR,"Error: could not compile hcml");
-        return 1;
-    }
-
-    // create the html code
-    int code_size = create_html(html,html_str);
-    if (code_size < 0) {
-        msg(ERROR,"Error: could not create html code");
-        return 1;
-    }
-
-    // free the html
-    destroy_html(html);
-
-    return 0;
-
-}
-
-
-
-
-struct html_tag* get_var(struct html_tag* vars,char* name) {
-    dbg(3,"Searching for %s in %d vars",name,vars->childs_count);
+struct html_tag* get_var(struct html_tag* vars, char* name) {
+    dbg(3, "Searching for %s in %d vars", name, vars->childs_count);
     for (int i = 0; i < vars->childs_count; i++) {
-        dbg(3,"Checking %s == %s",vars->childs[i]->name,name);
-        if (strcmp(vars->childs[i]->name,name) == 0) {
+        dbg(3, "Checking %s == %s", vars->childs[i]->name, name);
+        if (strcmp(vars->childs[i]->name, name) == 0) {
             return vars->childs[i];
         }
     }
@@ -68,263 +25,396 @@ struct html_tag* get_var(struct html_tag* vars,char* name) {
 
 void print_vars(struct html_tag* vars) {
     for (int i = 0; i < vars->childs_count; i++) {
-        printf("Var %s -> %d\n",vars->childs[i]->name,vars->childs[i]->childs_count);
+        printf("Var %s -> %d\n", vars->childs[i]->name, vars->childs[i]->childs_count);
     }
 }
 
-int hcml_eval(struct html_tag* html,struct html_tag** vars,size_t* vars_childs_alloc) {
+// Parse HCML <?set> tag
+/*
+    This function will process a set tag and append its HTML inner structure to the vars
+*/
+int hcml_parse_set(struct html_tag* set, struct html_tag** vars, size_t* vars_childs_alloc) {
+    dbg(3, "Processing set tag");
+    // we are setting a variable
+    // get the variable name
+    char* var_name = get_attribute_value(set, "id");
+    dbg(3, "Var name: %s", var_name);
+    if (var_name == NULL) {
+        msg(ERROR, "Error: no id attribute in ?set tag");
+        return 2;  // HCML error
+    }
 
-    if (html == NULL || html->name == NULL) {
-        dbg(3,"NULL tag");
-        return 1; // invalid tag error
-    } 
+    char* type = get_attribute_value(set, "type");
+    if (type == NULL) {
+        type = "var";
+    }
 
+    dbg(3, "Type: %s", type);
+    set->name = strdup(var_name);
+    set->attributes = malloc(sizeof(struct tag_attribute*));
+    set->attributes[0] = malloc(sizeof(struct tag_attribute));
+    set->attributes[0]->name = strdup("type");
+    set->attributes[0]->value = strdup(type);
+    set->attributes_count = 1;
 
-    dbg(3,"Initializing vars");
+    dbg(3, "Adding variable %s", var_name);
+    if ((*vars)->childs_count >= (*vars_childs_alloc) - 1) {
+        (*vars_childs_alloc) *= 2;
+        (*vars)->childs = realloc((*vars)->childs, (*vars_childs_alloc) * sizeof(struct html_tag*));
+    }
+    (*vars)->childs[(*vars)->childs_count] = set;
+    (*vars)->childs_count++;
+    dbg(3, "Variable added");
+    print_vars(*vars);
 
-        
+    // delete the set tag
+    pop_tag(set);
 
-    if (html->name[0] == '?') {
-        // we are in a hcml tag
-        // we need to evaluate it
-        if (strcmp(html->name,"?set") == 0) {
-            dbg(3,"Setting variable");
-            // we are setting a variable
-            // get the variable name
-            char* var_name = get_attribute_value(html,"id");
-            dbg(3,"Var name: %s",var_name);
-            if (var_name == NULL) {
-                msg(ERROR,"Error: no name attribute in ?set tag");
-                return 2; // HCML error
-            }
+    return 0;
+}
 
-            char* type = get_attribute_value(html,"type");
-            if (type == NULL) {
-                type = "var";
-            }
+// Parse HCML <?get> tag
+/*
+    This function will process a get tag and replace it with the variable value
+*/
+int hcml_parse_get(struct html_tag* get, struct html_tag** vars, size_t* vars_childs_alloc) {
+    dbg(3, "Getting variable");
+    print_vars(*vars);
+    // we are getting a variable
+    // get the variable name
+    char* var_name = get_attribute_value(get, "id");
+    if (var_name == NULL) {
+        msg(ERROR, "Error: no id attribute in ?get tag");
+        return 1;
+    }
 
-            dbg(3,"Type: %s",type);
-            html->name = type;
-            html->attributes = malloc(sizeof(struct tag_attribute*));
-            html->attributes[0] = malloc(sizeof(struct tag_attribute));
-            html->attributes[0]->name = strdup("id");
-            html->attributes[0]->value = strdup(var_name);
-            html->attributes_count = 1;
+    // get the variable value
+    struct html_tag* var = get_var(*vars, var_name);
+    if (var == NULL) {
+        msg(ERROR, "Error: variable %s not found", var_name);
+        return 1;
+    }
+    dbg(3, "Variable %s found", var_name);
 
-            dbg(3,"Adding variable %s",var_name);
-            if ((*vars)->childs_count >= (*vars_childs_alloc) - 1) {
-                (*vars_childs_alloc) *= 2;
-                (*vars)->childs = realloc((*vars)->childs,(*vars_childs_alloc)*sizeof(struct html_tag*));
-            }
-            (*vars)->childs[(*vars)->childs_count] = html;
-            (*vars)->childs_count++;
-            dbg(3,"Variable added");
-            print_vars(*vars);
-        } 
-        // Unfortunately the ?get part is awfully slow
-        // We could fix that easily by using the CUtils hashmap
-        // I'm lazy but I might do it later
-        else if (strcmp(html->name,"?get") == 0) {
-            dbg(3,"Getting variable");
-            print_vars(*vars);
-            // we are getting a variable
-            // get the variable name
-            char* var_name = get_attribute_value(html,"id");
-            if (var_name == NULL) {
-                msg(ERROR,"Error: no name attribute in ?get tag");
-                return 1;
-            }
+    // get the type
+    char* type = get_attribute_value(var, "type");
+    if (type == NULL) {
+        type = "var";
+    }
 
-            // get the variable value
-            struct html_tag* var = get_var(*vars,var_name);
-            if (var == NULL) {
-                msg(ERROR,"Error: variable %s not found",var_name);
-                return 1;
-            }
-            dbg(3,"Variable %s found",var_name);
+    var->attributes[0]->name = strdup("id");
+    var->attributes[0]->value = strdup(var_name);
 
-            if (html->childs_count == 0) {
-                // replace html by var
-                html->parent->childs[get_index(html)] = var;
+    var->name = strdup(type);
 
-            } else {
-                // Field-specific get
-                char* var_name = get_attribute_value(html, "id");
-                struct html_tag* var = get_var(*vars, var_name);
-                if (!var) {
-                    msg(ERROR, "Variable %s not found", var_name);
-                    return 1;
-                }
+    if (get->childs_count == 0) {
+        // replace html by var
+        get->parent->childs[get_index(get)] = var;
 
-                // We'll start by implementing one layer of depth
-                for (int i = 0; i < html->childs_count; i++) {
-                    struct html_tag* child = html->childs[i];
-
-                    char* field_name = child->name;
-                    if (!field_name) {
-                        msg(ERROR, "Field tag must have a name attribute");
-                        return 1;
-                    }
-
-                    struct html_tag* field = get_var(var, field_name);
-                    if (!field) {
-                        msg(ERROR, "Field %s not found in variable %s", field_name, var_name);
-                        return 1;
-                    }
-
-                    // Replace the field tag with the actual value
-                    html->childs[i] = field;
-                }
-            }
-
-
-
-        } else {
-            msg(ERROR,"Error: unknown hcml tag %s",html->name);
-            return 1;
-        }
     } else {
-        // loop over the childs
-        dbg(3,"Evaluating childs");
-        for (int i = 0; i < html->childs_count; i++) {
-            int eval_res = hcml_eval(html->childs[i],vars,vars_childs_alloc);
-            if (eval_res != 0) {
-                return eval_res;
+        // We'll start by implementing one layer of depth
+        // TODO: Implement multiple layers of depth
+        for (int i = 0; i < get->childs_count; i++) {
+            struct html_tag* child = get->childs[i];
+
+            char* field_name = child->name;
+            if (!field_name) {
+                msg(ERROR, "Child tag is weird");
+                return 1;
             }
+
+            struct html_tag* field = get_var(var, field_name);
+            if (!field) {
+                msg(ERROR, "Field %s not found in variable %s", field_name, var_name);
+                return 1;
+            }
+
+            // Replace the field tag with the actual value
+            get->childs[i] = field;
         }
+
+        // replace the get with a div
+        get->name = strdup("div");
     }
 
     return 0;
-
 }
 
-struct html_tag* hcml_load_file(char* path) {
-    if (path == NULL) {
-        msg(ERROR,"Error: no src attribute in ?load tag");
-        return NULL;
+// Parse HCML <?load> tag
+int hcml_parse_load(struct html_tag* load, struct html_tag** vars, size_t* vars_childs_alloc) {
+    // get the file path
+    char* file_path = get_attribute_value(load, "src");
+    if (file_path == NULL) {
+        msg(ERROR, "Error: no src attribute in ?load tag");
+        return 1;
     }
 
     char* file_content;
-    int file_size = rdfile(path,&file_content);
+    int file_size = rdfile(file_path, &file_content);
     if (file_size < 0) {
-        msg(ERROR,"Error: could not read file %s (%d)",path,file_size);
-        return NULL;
+        msg(ERROR, "Error: could not read file %s (%d)", file_path, file_size);
+        return 1;
     }
 
     // parse the file content
     struct html_tag* file_html = html_parser(file_content);
     if (file_html == NULL) {
-        msg(ERROR,"Error: could not parse file %s",path);
-        return NULL;
+        msg(ERROR, "Error: could not parse file %s", file_path);
+        free(file_content);
+        return 1;
     }
 
     free(file_content);
 
-    return file_html;
-}
+    // add the file content to the parent
+    load->parent->childs[get_index(load)] = file_html;
 
-int hcml_compile(struct html_tag* html) {
-    printf("getting code from %s\n",html->name);
+    // destroy the load tag
+    destroy_html(load);
 
-
-    // if root that is hcml ERROR
-    if (html->parent == NULL && html->name[0] == '?') {
-        msg(ERROR,"Error: root tag cannot be a hcml tag");
-        return 1;
-    }
-    
-    // we are basically running an interpreter
-    // we are going to loop over the tags
-
-    // get all the load tags
-    struct html_tag** load_tags = get_tags_by_name(html,"?load");
-    // loop over the load tags
-    dbg(3,"Evaluating load tags");
-    for (int i = 0; load_tags[i]; i++) {
-        // get the file path
-        char* file_path = get_attribute_value(load_tags[i],"src");
-        
-        // load the file
-        struct html_tag* file_html = hcml_load_file(file_path);
-
-        // add the file content to the parent
-        load_tags[i]->parent->childs[get_index(load_tags[i])] = file_html;
-
-        // destroy the load tag
-        destroy_html(load_tags[i]);
-    }
-
-    struct html_tag* vars;
-    vars = calloc(1,sizeof(struct html_tag));
-    vars->name = "vars";
-
-    size_t vars_childs_alloc = 16;
-    vars->childs_count = 0;
-    vars->childs = malloc(vars_childs_alloc*sizeof(struct html_tag*));
-    // evaluate the hcml tags
-    dbg(3,"Evaluating hcml tags");
-    int eval_res = hcml_eval(html,&vars,&vars_childs_alloc);
-    if (eval_res != 0) {
-        msg(ERROR,"Error: could not evaluate hcml");
-        return 1;
-    }
-
-    // dont free the vars
-    dbg(3,"HCML compiling done");
     return 0;
 }
 
-struct html_tag* hcml_set_create(const char* name,char* content) {
-    // Create base tag
-    struct html_tag* set = malloc(sizeof(struct html_tag));
-    if (!set) return NULL;
+int hcml_parse_if(struct html_tag* if_tag, struct html_tag** vars, size_t* vars_childs_alloc) {
+    // get the condition
+    char* condition = get_attribute_value(if_tag, "cond");
+    if (condition == NULL) {
+        msg(ERROR, "Error: no cond attribute in ?if tag");
+        return 1;
+    }
 
-    // Initialize basic fields
-    set->name = strdup("?set");
-    set->parent = NULL;
-    set->childs = NULL;
-    set->childs_count = 0;
-    set->content = content ? strdup(content) : NULL;
+    // evaluate the inside of the if tag
+    hcml_eval(if_tag, vars, vars_childs_alloc);
 
-    // Add name attribute
-    set->attributes = malloc(sizeof(struct tag_attribute*));
-    set->attributes[0] = malloc(sizeof(struct tag_attribute));
-    set->attributes[0]->name = strdup("name");
-    set->attributes[0]->value = strdup(name);
-    set->attributes_count = 1;
+    char* content = html_to_string(if_tag);
 
-    return set;
+    // Simple condition evaluation
+    if (strcmp(condition, content) == 0) {
+        // Keep the content
+        if_tag->parent->childs[get_index(if_tag)] = if_tag;
+    } else {
+        // Remove the if_tag content
+        destroy_html(if_tag);
+    }
+
+    return 0;
 }
 
-// Helper to add a child tag
-void hcml_set_append(struct html_tag* set, const char* tag_name, const char* content) {
-    struct html_tag* child = malloc(sizeof(struct html_tag));
+int hcml_parse_eval(struct html_tag* eval, struct html_tag** vars, size_t* vars_childs_alloc) {
+    dbg(3, "Processing eval tag");
+    // Evaluate the inner content
+    hcml_eval(eval, vars, vars_childs_alloc);
 
-    child->name = strdup(tag_name);
-    child->content = content ? strdup(content) : NULL;
-    child->attributes = NULL;
-    child->attributes_count = 0;
-    child->childs = NULL;
-    child->childs_count = 0;
-    child->parent = set;
+    // For simplicity, we'll just replace the eval tag with its content rendered as a string
+    char* content = html_to_string(eval);
 
-    // Add to parent
-    insert_tag(set, child, set->childs_count);
+    // Create a new text node with the evaluated content
+    struct html_tag* text_node = calloc(1, sizeof(struct html_tag));
+    text_node->name = NULL;  // Text node
+    text_node->content = strdup(content);
+
+    // Replace the eval tag with the text node in the parent's child list
+    eval->parent->childs[get_index(eval)] = text_node;
+
+    // Free the eval tag
+    destroy_html(eval);
+    free(content);
+
+    return 0;
 }
 
+struct html_tag* get_fn(struct html_tag* fns, char* name) {
+    for (int i = 0; i < fns->childs_count; i++) {
+        if (strcmp(fns->childs[i]->name, name) == 0) {
+            return fns->childs[i];
+        }
+    }
+    return NULL;
+}
 
+int hcml_parse_fn(struct html_tag* fn, struct html_tag** vars, size_t* vars_childs_alloc) {
+    dbg(3, "Processing fn tag");
+    // Get the function name
+    char* fn_name = get_attribute_value(fn, "id");
+    if (fn_name == NULL) {
+        msg(ERROR, "Error: no id attribute in ?fn tag");
+        return 1;
+    }
+
+    // Add the function to vars under a special 'functions' variable
+    struct html_tag* fns = get_var(*vars, "functions");
+    if (fns == NULL) {
+        // Create the functions variable
+        fns = calloc(1, sizeof(struct html_tag));
+        fns->name = strdup("functions");
+        if ((*vars)->childs_count >= (*vars_childs_alloc) - 1) {
+            (*vars_childs_alloc) *= 2;
+            (*vars)->childs = realloc((*vars)->childs, (*vars_childs_alloc) * sizeof(struct html_tag*));
+        }
+        (*vars)->childs[(*vars)->childs_count++] = fns;
+    }
+
+    // Set the function name
+    fn->name = strdup(fn_name);
+
+    int fns_alloc = fns->attributes[0]->value ? atoi(fns->attributes[0]->value) : 0;
+    // Add the function to the functions variable
+    if (fns->childs_count >= fns_alloc - 1) {
+        fns_alloc = fns_alloc == 0 ? 16 : fns_alloc * 2;
+        fns->childs = realloc(fns->childs, fns_alloc * sizeof(struct html_tag*));
+        sprintf(fns->attributes[0]->value, "%d", fns_alloc);
+    }
+    fns->childs[fns->childs_count++] = fn;
+
+    // Remove the fn tag from its parent since it's stored in functions
+    pop_tag(fn);
+    dbg(3, "Function %s added", fn_name);
+
+    return 0;
+}
+
+int hcml_parse_call(struct html_tag* call, struct html_tag** vars, size_t* vars_childs_alloc) {
+    dbg(3, "Processing call tag");
+    // Get the function name
+    char* fn_name = get_attribute_value(call, "id");
+    if (fn_name == NULL) {
+        msg(ERROR, "Error: no id attribute in ?call tag");
+        return 1;
+    }
+
+    // Get the function from vars
+    struct html_tag* fns = get_var(*vars, "functions");
+    if (fns == NULL) {
+        msg(ERROR, "Error: no functions defined");
+        return 1;
+    }
+
+    struct html_tag* fn = get_fn(fns, fn_name);
+    if (fn == NULL) {
+        msg(ERROR, "Error: function %s not found", fn_name);
+        return 1;
+    }
+
+    // Clone the function body
+    struct html_tag* fn_body = calloc(1, sizeof(struct html_tag));
+    fn_body->name = strdup(fn->name);
+    fn_body->childs = calloc(fn->childs_count, sizeof(struct html_tag*));
+    fn_body->childs_count = fn->childs_count;
+    for (int i = 0; i < fn->childs_count; i++) {
+        fn_body->childs[i] = calloc(1, sizeof(struct html_tag));
+        fn_body->childs[i]->name = strdup(fn->childs[i]->name);
+        fn_body->childs[i]->content = strdup(fn->childs[i]->content);
+    }
+
+    // Replace the call tag with the function body
+    call->parent->childs[get_index(call)] = fn_body;
+
+    // Evaluate the function body
+    hcml_eval(fn_body, vars, vars_childs_alloc);
+
+    // Destroy the call tag
+    destroy_html(call);
+
+    return 0;
+}
+
+void* hcml_funcs[][2] = {
+    {"?set", hcml_parse_set},
+    {"?get", hcml_parse_get},
+    {"?load", hcml_parse_load},
+    {"?if", hcml_parse_if},
+    {"?eval", hcml_parse_eval},
+    {"?fn", hcml_parse_fn},
+    {"?call", hcml_parse_call}
+};
+
+int hcml_eval(struct html_tag* html, struct html_tag** vars, size_t* vars_childs_alloc) {
+    if (html == NULL) {
+        dbg(3, "NULL tag");
+        return 1;  // invalid tag error
+    }
+
+    if (html->name && html->name[0] == '?') {
+        dbg(3, "Processing hcml tag %s", html->name);
+        // loop over the functions
+        int found = 0;
+        for (int i = 0; i < sizeof(hcml_funcs) / sizeof(hcml_funcs[0]); i++) {
+            if (strcmp(html->name, hcml_funcs[i][0]) == 0) {
+                // call the function
+                int (*fn)(struct html_tag*, struct html_tag**, size_t*) = hcml_funcs[i][1];
+                int res = fn(html, vars, vars_childs_alloc);
+                if (res != 0) {
+                    return res;
+                }
+                found = 1;
+                break;
+            }
+        }
+        if (!found) {
+            msg(ERROR, "Error: Unknown hcml tag %s", html->name);
+            return 1;
+        }
+    } else {
+        // loop over the children
+        dbg(3, "Evaluating children of %s", html->name ? html->name : "text node");
+        // copy the childs
+        struct html_tag** childs = calloc(html->childs_count, sizeof(struct html_tag*));
+        int count = html->childs_count;
+        printf("Allocated %d\n", html->childs_count);
+        for (int i = 0; i < html->childs_count; i++) {
+            childs[i] = html->childs[i];
+        }
+
+        // evaluate the childs
+        for (int i = 0; i < count; i++) {
+            printf("Evaluating child %d\n", i);
+            hcml_eval(childs[i], vars, vars_childs_alloc);
+        }
+        free(childs);
+    }
+
+    return 0;
+}
+
+int hcml_compile(struct html_tag* html) {
+    printf("Compiling code from %s\n", html->name ? html->name : "root");
+
+    // if root that is hcml ERROR
+    if (html->parent == NULL && html->name && html->name[0] == '?') {
+        msg(ERROR, "Error: root tag cannot be a hcml tag");
+        return 1;
+    }
+
+    struct html_tag* vars;
+    vars = calloc(1, sizeof(struct html_tag));
+    vars->name = strdup("vars");
+
+    size_t vars_childs_alloc = 16;
+    vars->childs_count = 0;
+    vars->childs = malloc(vars_childs_alloc * sizeof(struct html_tag*));
+    // evaluate the hcml tags
+    dbg(3, "Evaluating hcml tags");
+    int eval_res = hcml_eval(html, &vars, &vars_childs_alloc);
+    if (eval_res != 0) {
+        msg(ERROR, "Error: could not evaluate hcml");
+        return 1;
+    }
+
+    // don't free the vars
+    dbg(3, "HCML compiling done");
+    return 0;
+}
 
 // HTMX
 
 struct htmx_context* process_htmx(struct html_tag* root) {
-
     struct html_tag** on_tags = get_tags_by_name(root, "?hx-on");
 
     struct htmx_context* ctx = calloc(1, sizeof(struct htmx_context));
     ctx->capacity = 16;
     ctx->handlers = calloc(ctx->capacity, sizeof(struct htmx_handler*));
 
-    for(int i = 0; on_tags[i]; i++) {
+    for (int i = 0; on_tags[i]; i++) {
         struct html_tag* on_tag = on_tags[i];
         struct htmx_handler* handler = calloc(1, sizeof(struct htmx_handler));
 
@@ -339,17 +429,16 @@ struct htmx_context* process_htmx(struct html_tag* root) {
         if (strcmp(htmx_tag->name, "hx-get") == 0) {
             handler->method = GET;
         } else if (strcmp(htmx_tag->name, "hx-post") == 0) {
-            method = POST;
+            handler->method = POST;
         } else if (strcmp(htmx_tag->name, "hx-put") == 0) {
-            method = PUT;
+            handler->method = PUT;
         } else if (strcmp(htmx_tag->name, "hx-delete") == 0) {
-            method = DELETE;
+            handler->method = DELETE;
         } else {
             msg(ERROR, "Invalid method %s", htmx_tag->name);
             free(handler);
             continue;
         }
-
 
         // Get path
         handler->path = get_attribute_value(htmx_tag, "hx-path");
@@ -358,7 +447,6 @@ struct htmx_context* process_htmx(struct html_tag* root) {
             free(handler);
             continue;
         }
-
 
         // Get code
         handler->hcmx_handler = on_tag;
@@ -372,7 +460,5 @@ struct htmx_context* process_htmx(struct html_tag* root) {
         ctx->count++;
     }
 
-
     return ctx;
 }
-

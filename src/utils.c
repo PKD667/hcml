@@ -193,8 +193,32 @@ int pop_tag(struct html_tag* tag) {
     // decrease the count
     tag->parent->childs_count--;
 
-    // free the tag
-    destroy_html(tag);
 
     return 0;
+}
+
+char* html_to_string(struct html_tag* html) {
+    // convert the html to a string
+    // recursively loop over the tags
+    // and return the string
+    size_t str_alloc = strlen(html->content) + 1;
+    char* str = calloc(str_alloc,sizeof(char));
+
+    strcat(str,html->content);
+    size_t str_len = strlen(html->content);
+
+    for (int i = 0; i < html->childs_count; i++) {
+        char* child_str = html_to_string(html->childs[i]);
+        size_t child_str_len = strlen(child_str);
+        size_t required_size = str_len + child_str_len + 1;
+        if (required_size >= str_alloc) {
+            str_alloc = required_size + 512;
+            str = realloc(str,str_alloc);
+        }
+        strcat(str,child_str);
+        str_len = required_size - 1;
+        free(child_str);
+    }
+
+    return str;
 }

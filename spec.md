@@ -162,75 +162,22 @@ We can use the `<?if>` tag to include a variable.
 <h1>I don't know you</h1>
 ```
 
-### `<?op>`
+### `<?eval>`
 
-The `<?op>` tag is used to apply a mathematical operation to the values in it. The operation is defined in the `op` attribute of the tag. The `<?op>` tag can have multiple childrens, each of them being a value to apply the operation to. The result of the operation is the value of the `<?op>` tag. The tag attributes sets the name of the html tag returned by the operation.
-
-##### Simple example
-
-We can use the `<?op>` tag to add two values.
-
-**pre-compile:**
-```html
-<?op op="add" type="p">
-    <p>1</p>
-    <p>2</p>
-</?op>
-```
-
-**post-compile:**
-```html
-<p>3</p>
-```
-
-##### More complex example
-
-We can use the `<?op>` tag to add two values and multiply the result by a third value.
-
-**pre-compile:**
-```html
-<?op op="mul" type="p">
-    <?op op="add">
-        <p>1</p>
-        <p>2</p>
-    </?op>
-    <p>3</p>
-</?op>
-```
-
-**post-compile:**
-```html
-<p>9</p>
-```
-
-
-
-### `<?eq>` and `<?neq>`
-
-The `<?eq>` and `<?neq>` tags are used to compare any number of values. The `<?eq>` tag is used to compare if all the values are equal, and the `<?neq>` tag is used to compare if all the values are different. The result of the comparision is specified in the attributes of the tag. The `true` attribute is the value of the tag if the comparision is true, and the `false` attribute is the value of the tag if the comparision is false.
+The `<?eval>` tag is used to evaluate a mathematical expression. The expression is defined in the `cond` attribute of the tag. The result of the evaluation is included in the file.
 
 ##### Simple example
 
-We can use the `<?eq>` tag to compare two values.
+We can use the `<?eval>` tag to include the result of a mathematical expression.
 
 **pre-compile:**
 ```html
-<?eq type="p" true="good" false="bad">
-    <p>1</p>
-    <p>1</p>
-</?eq>
-
-<?eq type="p" true="good" false="bad">
-    <p>1</p>
-    <p>2</p>
-</?eq>
+<?eval cond="2+2">
 ```
 
 **post-compile:**
 ```html
-<p>good</p>
-
-<p>bad</p>
+4
 ```
 
 ### `<?fn>`

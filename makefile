@@ -1,6 +1,6 @@
 # Compiler and flags
 CC = gcc
-CFLAGS = -Wall -Wextra -I./include
+CFLAGS = -Wall -Wextra -lm
 TEST_FLAGS = $(CFLAGS) -g
 
 # Directories
@@ -49,7 +49,7 @@ $(TEST_TARGET): $(OBJ_NO_MAIN) libs
 	@echo "Using libs : $(LIBS_A)"
 
 	@mkdir -p $(BIN_DIR)
-	$(CC) test.c $(SRC) $(LIBS_A) -o $(TEST_TARGET)
+	$(CC) test.c -lm $(SRC) $(LIBS_A) -o $(TEST_TARGET)
 	@echo "Test binary built!"
 
 # make the libs

@@ -33,6 +33,7 @@ int remove_tag(struct html_tag* html);
 int get_index(struct html_tag* html) ;
 int insert_tag(struct html_tag* parent, struct html_tag* child, int index);
 int pop_tag(struct html_tag* tag);
+char* html_to_string(struct html_tag* html);
 
 // Getters  
 struct html_tag* get_tag_by_id(struct html_tag* html,char* id);
@@ -46,6 +47,8 @@ int destroy_html(struct html_tag* html);
 // HCML specific
 // Hyper C Markup Language
 int hcml_compile(struct html_tag* html);
+int hcml_eval(struct html_tag* html,struct html_tag** vars,size_t* vars_childs_alloc);
 
-struct html_tag* hcml_set_create(const char* name,char* content);
-void hcml_set_append(struct html_tag* set, const char* tag_name, const char* content);
+// EXPR evaluation
+int math_eval(char* expr);
+

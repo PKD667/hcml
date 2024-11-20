@@ -7,14 +7,64 @@
 #include "../include/hcmx.h"
 
 
+int get_hcmx(char* path,char** html_str,struct htmx_context* ctx) {
 
+    // read the file
+    char* file_content;
+    int file_size = rdfile(path,&file_content);
+    if (file_size < 0) {
+        msg(ERROR,"Error: could not read file %s (%d)",path,file_size);
+        return 1;
+    }
+
+    // parse the file content
+    struct html_tag* html = html_parser(file_content);
+    if (html == NULL) {
+        msg(ERROR,"Error: could not parse file %s",path);
+        return 1;
+    }
+
+    // process the htmx tags
+    ctx = process_htmx(html);
+
+    // compile the hcml
+    int compile_res = hcml_compile(html);
+    if (compile_res != 0) {
+        msg(ERROR,"Error: could not compile hcml");
+        return 1;
+    }
+
+    // create the html code
+    int code_size = create_html(html,html_str);
+    if (code_size < 0) {
+        msg(ERROR,"Error: could not create html code");
+        return 1;
+    }
+
+    // free the html
+    destroy_html(html);
+
+    return 0;
+
+}
 
 struct html_tag* run_hcmx(struct http_request request, struct html_tag* hcmx_html, struct fn_entry* functions) {
 
-    // add a <?set> tag with the client request
-    struct html_tag* set_tag = hcml_set_create("request",NULL);
-    hcml_set_append(set_tag,"body", request.body);
-    hcml_set_append(set_tag,"path", request.path);
+    struct html_tag* vars;
+    vars = calloc(1,sizeof(struct html_tag));
+    vars->name = "vars";
+    size_t vars_childs_alloc = 16;
+    vars->childs_count = 0;
+    vars->childs = malloc(vars_childs_alloc*sizeof(struct html_tag*));
+
+    // set the request variables
+    vars->childs[vars->childs_count] = calloc(1,sizeof(struct html_tag));
+    vars->childs[vars->childs_count]->name = "path";
+    vars->childs[vars->childs_count]->content = strdup(request.path);
+    vars->childs_count++;
+
+    vars->childs[vars->childs_count] = calloc(1,sizeof(struct html_tag));
+    vars->childs[vars->childs_count]->name = "method"; 
     char* method = NULL;
     switch (request.method) {
         case GET:
@@ -30,70 +80,23 @@ struct html_tag* run_hcmx(struct http_request request, struct html_tag* hcmx_htm
             method = "DELETE";
             break;
     }
-    hcml_set_append(set_tag,"method", method);
+    vars->childs[vars->childs_count]->content = strdup(method);
+    vars->childs_count++;
 
+    // add the body
+    vars->childs[vars->childs_count] = calloc(1,sizeof(struct html_tag));
+    vars->childs[vars->childs_count]->name = "body";
+    vars->childs[vars->childs_count]->content = strdup(request.body);
+    vars->childs_count++;
 
-
-    // insert the tag at the beginning
-    insert_tag(hcmx_html,set_tag,0);
-
-
-    // compile the hcml
-    int compile_res = hcml_compile(hcmx_html);
-    if (compile_res != 0) {
-        msg(ERROR,"Error: could not compile hcml");
+    dbg(3,"Evaluating hcml tags");
+    int eval_res = hcml_eval(hcmx_html,&vars,&vars_childs_alloc);
+    if (eval_res != 0) {
+        msg(ERROR,"Error: could not evaluate hcml");
         return NULL;
     }
 
-    // run functions
-    struct html_tag** fn_tags = get_tags_by_name(hcmx_html,"?do");
-    
-    for (int i = 0; fn_tags[i]; i++) {
-        struct html_tag* fn_tag = fn_tags[i];
-        char* fn_name = get_attribute_value(fn_tag,"fn");
-        if (fn_name == NULL) {
-            msg(ERROR,"Error: ?do tag must have a name attribute");
-            return NULL;
-        }
-
-        // find the function
-        handler_fn fn = NULL;
-        for (int j = 0; functions[j].name; j++) {
-            if (strcmp(functions[j].name,fn_name) == 0) {
-                fn = functions[j].fn;
-                break;
-            }
-        }
-
-        if (fn == NULL) {
-            msg(ERROR,"Error: function %s not found",fn_name);
-            return NULL;
-        }
-
-        // run the function
-        struct html_tag* res = fn(fn_tag->childs);
-        if (res == NULL) {
-            msg(ERROR,"Error: function %s returned NULL",fn_name);
-            return NULL;
-        }
-
-        fn_tag->parent->childs[get_index(fn_tag)] = res;
-    }
-
-    // find the <?return> tag
-    struct html_tag** return_tag = get_tags_by_name(hcmx_html,"?return");
-    if (return_tag == NULL) {
-        msg(WARNING,"Error: no ?return tag found using empty string");
-        // its not allowed to not have a return tag
-        return NULL;
-    }
-
-    if (return_tag[1] != NULL) {
-        msg(ERROR,"Error: multiple ?return tags found");
-        msg(INFO,"Returning the first one");
-    }
-
-    return return_tag[0];
+    return hcmx_html;
 }
 
 

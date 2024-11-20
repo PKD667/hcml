@@ -319,7 +319,7 @@ int test_hcml() {
 
     // Test 1: HCML parsing 
     {
-        char* input = "<html><?set name=\"test\">HELLO</?set></html>";
+        char* input = "<html><?set id=\"test\">HELLO</?set></html>";
         struct html_tag* root = html_parser(input);
 
         int res = hcml_compile(root);
@@ -335,6 +335,8 @@ int test_hcml() {
     {
         char* input = "<html><?set id=\"test\" type=\"div\">Hello</?set><?get id=\"test\"></?get></html>";
         struct html_tag* root = html_parser(input);
+        printf("Root: %p\n",root);
+        printf("Childs: %d\n",root->childs_count);
         int res = hcml_compile(root);
 
         if (res != 0) {
@@ -351,7 +353,7 @@ int test_hcml() {
 
     // Test 3: nested set and get
     {
-        char* input = "<html><?set name=\"var\"><in> In variable </in></?set><?get id=\"var\"><in/></?get><html>";
+        char* input = "<html><?set id=\"var\"><in> In variable </in></?set><?get id=\"var\"><in/></?get></html>";
         struct html_tag* root = html_parser(input);
         int res = hcml_compile(root);
 
