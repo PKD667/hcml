@@ -3,6 +3,8 @@
 #include "stdlib.h"
 #include "stdbool.h"
 
+#define DEFAULT_TAG_TYPE "div"
+
 struct tag_attribute {
     char *name;
     char *value;
@@ -50,5 +52,10 @@ int hcml_compile(struct html_tag* html);
 int hcml_eval(struct html_tag* html,struct html_tag** vars,size_t* vars_childs_alloc);
 
 // EXPR evaluation
-int math_eval(char* expr);
+int eval(char* expr,struct html_tag* vars);
+
+struct html_tag* get_var(struct html_tag* vars, char* name);
+
+// standard function pointer template
+typedef struct html_tag* (*hcml_fn)(struct html_tag*);
 

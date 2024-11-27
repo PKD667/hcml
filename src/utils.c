@@ -168,7 +168,8 @@ int insert_tag(struct html_tag* parent, struct html_tag* child, int index) {
     return 0;
 }
 
-// remove a tag
+// remove a tag /
+// doesnt free the tag
 int pop_tag(struct html_tag* tag) {
     if (tag == NULL) {
         return 1;
@@ -222,3 +223,4 @@ char* html_to_string(struct html_tag* html) {
 
     return str;
 }
+

@@ -23,12 +23,16 @@ struct html_tag* get_var(struct html_tag* vars, char* name) {
     return NULL;
 }
 
+
+// HCML variable are represented using the standard HTML tag structure. 
+// Theoretically, the cariable are html objects with children
+// When doing operation the variable is replaced by the content of the main parent tag
+
 void print_vars(struct html_tag* vars) {
     for (int i = 0; i < vars->childs_count; i++) {
         printf("Var %s -> %d\n", vars->childs[i]->name, vars->childs[i]->childs_count);
     }
 }
-
 // Parse HCML <?set> tag
 /*
     This function will process a set tag and append its HTML inner structure to the vars
@@ -46,7 +50,7 @@ int hcml_parse_set(struct html_tag* set, struct html_tag** vars, size_t* vars_ch
 
     char* type = get_attribute_value(set, "type");
     if (type == NULL) {
-        type = "var";
+        type = DEFAULT_TAG_TYPE;
     }
 
     dbg(3, "Type: %s", type);
@@ -99,7 +103,7 @@ int hcml_parse_get(struct html_tag* get, struct html_tag** vars, size_t* vars_ch
     // get the type
     char* type = get_attribute_value(var, "type");
     if (type == NULL) {
-        type = "var";
+        type = DEFAULT_TAG_TYPE;
     }
 
     var->attributes[0]->name = strdup("id");
@@ -111,30 +115,29 @@ int hcml_parse_get(struct html_tag* get, struct html_tag** vars, size_t* vars_ch
         // replace html by var
         get->parent->childs[get_index(get)] = var;
 
-    } else {
+    } else if (get->childs_count == 1) {
         // We'll start by implementing one layer of depth
         // TODO: Implement multiple layers of depth
-        for (int i = 0; i < get->childs_count; i++) {
-            struct html_tag* child = get->childs[i];
+        struct html_tag* child = get->childs[0];
 
-            char* field_name = child->name;
-            if (!field_name) {
-                msg(ERROR, "Child tag is weird");
-                return 1;
-            }
-
-            struct html_tag* field = get_var(var, field_name);
-            if (!field) {
-                msg(ERROR, "Field %s not found in variable %s", field_name, var_name);
-                return 1;
-            }
-
-            // Replace the field tag with the actual value
-            get->childs[i] = field;
+        char* field_name = child->name;
+        if (!field_name) {
+            msg(ERROR, "Child tag is weird");
+            return 1;
         }
 
-        // replace the get with a div
-        get->name = strdup("div");
+        struct html_tag* field = get_var(var, field_name);
+        if (!field) {
+            msg(ERROR, "Field %s not found in variable %s", field_name, var_name);
+            return 1;
+        }
+
+        // Replace the field tag with the actual value
+        get->parent->childs[get_index(get)] = field;
+
+    } else {
+        msg(ERROR, "Multiple childs");
+        return 1;
     }
 
     return 0;
@@ -183,19 +186,66 @@ int hcml_parse_if(struct html_tag* if_tag, struct html_tag** vars, size_t* vars_
         return 1;
     }
 
-    // evaluate the inside of the if tag
-    hcml_eval(if_tag, vars, vars_childs_alloc);
+    // evaluares the condition
+    int result = eval(condition, *vars);
 
-    char* content = html_to_string(if_tag);
+    if (!result) {
+        // remove the if tag
+        dbg(3, "Condition %s is false", condition);
 
-    // Simple condition evaluation
-    if (strcmp(condition, content) == 0) {
-        // Keep the content
-        if_tag->parent->childs[get_index(if_tag)] = if_tag;
-    } else {
-        // Remove the if_tag content
+        if (if_tag->parent->childs_count > 1 && 
+            strcmp(if_tag->parent->childs[get_index(if_tag) + 1]->name,"?else") == 0) {
+            
+            // the else tag is executed
+            struct html_tag* else_tag = &if_tag->parent[get_index(if_tag) + 1];
+            // check the name of the else tag
+            if (else_tag->name == NULL) {
+                else_tag->name = DEFAULT_TAG_TYPE;
+            }
+        }
+
+        pop_tag(if_tag);
         destroy_html(if_tag);
+
+    } 
+    dbg(3, "Condition %s is true", condition);
+
+    // check for a type
+    dbg(3, "Checking for type");
+    char* type = get_attribute_value(if_tag, "type");
+    if (type == NULL) {
+        type = DEFAULT_TAG_TYPE;
     }
+
+    // replace the if tag with a div
+    free(if_tag->name);
+    if_tag->name = strdup(type);
+
+    // remove the condition attribute
+    for (int i = 0; i < if_tag->attributes_count; i++) {
+        if (strcmp(if_tag->attributes[i]->name, "cond") == 0) {
+            free(if_tag->attributes[i]->name);
+            free(if_tag->attributes[i]->value);
+            free(if_tag->attributes[i]);
+            if_tag->attributes_count--;
+            for (int j = i; j < if_tag->attributes_count; j++) {
+                if_tag->attributes[j] = if_tag->attributes[j + 1];
+            }
+            break;
+        }
+    }
+
+    dbg(3,"Checking for else tag");
+
+    if (if_tag->parent->childs_count > get_index(if_tag) && 
+            strcmp(if_tag->parent->childs[get_index(if_tag) + 1]->name,"?else") == 0) {
+            
+        dbg(3, "Else tag found");
+        // REMOVE THE ELSE TAG
+        pop_tag(if_tag->parent->childs[get_index(if_tag) + 1]);
+        destroy_html(if_tag->parent->childs[get_index(if_tag) + 1]);
+    }
+
 
     return 0;
 }
@@ -232,46 +282,6 @@ struct html_tag* get_fn(struct html_tag* fns, char* name) {
     return NULL;
 }
 
-int hcml_parse_fn(struct html_tag* fn, struct html_tag** vars, size_t* vars_childs_alloc) {
-    dbg(3, "Processing fn tag");
-    // Get the function name
-    char* fn_name = get_attribute_value(fn, "id");
-    if (fn_name == NULL) {
-        msg(ERROR, "Error: no id attribute in ?fn tag");
-        return 1;
-    }
-
-    // Add the function to vars under a special 'functions' variable
-    struct html_tag* fns = get_var(*vars, "functions");
-    if (fns == NULL) {
-        // Create the functions variable
-        fns = calloc(1, sizeof(struct html_tag));
-        fns->name = strdup("functions");
-        if ((*vars)->childs_count >= (*vars_childs_alloc) - 1) {
-            (*vars_childs_alloc) *= 2;
-            (*vars)->childs = realloc((*vars)->childs, (*vars_childs_alloc) * sizeof(struct html_tag*));
-        }
-        (*vars)->childs[(*vars)->childs_count++] = fns;
-    }
-
-    // Set the function name
-    fn->name = strdup(fn_name);
-
-    int fns_alloc = fns->attributes[0]->value ? atoi(fns->attributes[0]->value) : 0;
-    // Add the function to the functions variable
-    if (fns->childs_count >= fns_alloc - 1) {
-        fns_alloc = fns_alloc == 0 ? 16 : fns_alloc * 2;
-        fns->childs = realloc(fns->childs, fns_alloc * sizeof(struct html_tag*));
-        sprintf(fns->attributes[0]->value, "%d", fns_alloc);
-    }
-    fns->childs[fns->childs_count++] = fn;
-
-    // Remove the fn tag from its parent since it's stored in functions
-    pop_tag(fn);
-    dbg(3, "Function %s added", fn_name);
-
-    return 0;
-}
 
 int hcml_parse_call(struct html_tag* call, struct html_tag** vars, size_t* vars_childs_alloc) {
     dbg(3, "Processing call tag");
@@ -293,26 +303,24 @@ int hcml_parse_call(struct html_tag* call, struct html_tag** vars, size_t* vars_
     if (fn == NULL) {
         msg(ERROR, "Error: function %s not found", fn_name);
         return 1;
+    }   
+
+    // the fn content is the pointer to the function
+    hcml_fn fn_ptr = (hcml_fn)fn->content;
+
+    // call the function
+    if (fn_ptr == NULL) {
+        msg(ERROR, "Error: function %s is NULL", fn_name);
+        return 1;
     }
 
-    // Clone the function body
-    struct html_tag* fn_body = calloc(1, sizeof(struct html_tag));
-    fn_body->name = strdup(fn->name);
-    fn_body->childs = calloc(fn->childs_count, sizeof(struct html_tag*));
-    fn_body->childs_count = fn->childs_count;
-    for (int i = 0; i < fn->childs_count; i++) {
-        fn_body->childs[i] = calloc(1, sizeof(struct html_tag));
-        fn_body->childs[i]->name = strdup(fn->childs[i]->name);
-        fn_body->childs[i]->content = strdup(fn->childs[i]->content);
-    }
+    struct html_tag* res = fn_ptr(call);
 
-    // Replace the call tag with the function body
-    call->parent->childs[get_index(call)] = fn_body;
+    dbg(3, "Got result %s from function %s", res->name, fn_name);
 
-    // Evaluate the function body
-    hcml_eval(fn_body, vars, vars_childs_alloc);
+    // replace the call tag with the result
+    call->parent->childs[get_index(call)] = res;
 
-    // Destroy the call tag
     destroy_html(call);
 
     return 0;
@@ -324,7 +332,6 @@ void* hcml_funcs[][2] = {
     {"?load", hcml_parse_load},
     {"?if", hcml_parse_if},
     {"?eval", hcml_parse_eval},
-    {"?fn", hcml_parse_fn},
     {"?call", hcml_parse_call}
 };
 
@@ -368,11 +375,20 @@ int hcml_eval(struct html_tag* html, struct html_tag** vars, size_t* vars_childs
         // evaluate the childs
         for (int i = 0; i < count; i++) {
             printf("Evaluating child %d\n", i);
+            // checking for possible chnages in structure
+            if (html->childs_count != count) {
+                msg(WARNING, "structure changed");
+                if (i > html->childs_count) {
+                    dbg(3, "Skipping child %d", i);
+                    break;
+                }
+            }
             hcml_eval(childs[i], vars, vars_childs_alloc);
         }
         free(childs);
     }
 
+    dbg(3, "HCML tag %s evaluated", html->name ? html->name : "text node");
     return 0;
 }
 

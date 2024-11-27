@@ -8,7 +8,6 @@
 #include "include/cutils.h"
 #include "include/hcmx.h"
 
-
 /*
  BASE HTML PARSER TEST SUITE
 */
@@ -314,6 +313,156 @@ int test_getters() {
  SPECIAL HCML TESTS
 */
 
+
+/*
+    EVAL TESTS
+
+    The evaluation functions are a subset of the HCML functions
+    They are used to evaluate expressions and variables
+    (`if` conditions, `op` blocks, etc)
+*/
+
+int test_eval() {
+    int failed = 0;
+
+    // Test 1: Basic expression
+    {
+        char* input = "1 + 1";
+        int res = eval(input, NULL);
+        if (res != 2) {
+            msg(ERROR,"Basic expression test failed");
+            failed++;
+        } else {
+            msg(INFO,"Basic expression test PASSED");
+        }
+    }
+
+    // Test 2: Variable evaluation
+    {
+        char* input = "1 + var";
+        struct html_tag* vars = calloc(1, sizeof(struct html_tag));
+        vars->name = strdup("vars");
+        
+        vars->childs = calloc(1, sizeof(struct html_tag*));
+        vars->childs[0] = calloc(1, sizeof(struct html_tag));
+        vars->childs[0]->name = strdup("var");
+        vars->childs[0]->content = strdup("2");
+
+        vars->childs_count = 1;
+
+        int res = eval(input, vars);
+        free(vars->name);
+        free(vars->content);
+        if (res != 3) {
+            msg(ERROR,"Variable evaluation test failed");
+            failed++;
+        } else {
+            msg(INFO,"Variable evaluation test PASSED");
+        }
+    }
+
+    // Test 3: string comparision
+    {      
+        // should evaluate:
+        // (hello == hello or dog == cat ) -> true
+        char* input = "string1 == string2 || string3 == string4";
+
+        struct html_tag* vars = calloc(1, sizeof(struct html_tag));
+        vars->name = strdup("vars");
+        vars->childs = calloc(4, sizeof(struct html_tag*));
+
+        vars->childs[0] = calloc(1, sizeof(struct html_tag));
+        vars->childs[0]->name = strdup("string1");
+        vars->childs[0]->content = strdup("hello");
+
+        vars->childs[1] = calloc(1, sizeof(struct html_tag));
+        vars->childs[1]->name = strdup("string2");
+        vars->childs[1]->content = strdup("hello");
+
+        vars->childs[2] = calloc(1, sizeof(struct html_tag));
+        vars->childs[2]->name = strdup("string3");
+        vars->childs[2]->content = strdup("dog");
+
+        vars->childs[3] = calloc(1, sizeof(struct html_tag));
+        vars->childs[3]->name = strdup("string4");
+        vars->childs[3]->content = strdup("cat");
+
+        vars->childs_count = 4;
+
+        int res = eval(input, vars);
+
+        if (res != 1) {
+            msg(ERROR,"String comparision test failed");
+            failed++;
+        } else {
+            msg(INFO,"String comparision test PASSED");
+        }
+    }
+
+    // Test 4: nested expressions
+    {
+        // should evaluate:
+        // (1 + 1) * 2 -> 4
+        char* input = "(num + 4) * 2";
+
+        struct html_tag* vars = calloc(1, sizeof(struct html_tag));
+        vars->name = strdup("vars");
+
+        vars->childs = calloc(2, sizeof(struct html_tag*));
+        vars->childs[0] = calloc(1, sizeof(struct html_tag));
+        vars->childs[0]->name = strdup("num");
+        vars->childs[0]->content = strdup("4");
+
+        vars->childs_count = 1;
+
+        int res = eval(input, vars);
+
+        if (res != 16) {
+            msg(ERROR,"Nested expressions test failed");
+            failed++;
+        } else {
+            msg(INFO,"Nested expressions test PASSED");
+        }
+    }
+
+    // Test 5: nested var acess (var#child)
+    {
+        // should evaluate:
+        // var.child -> 2
+        char* input = "var#child == 'bing'";
+
+        struct html_tag* vars = calloc(1, sizeof(struct html_tag));
+        vars->name = strdup("vars");
+
+        vars->childs = calloc(1, sizeof(struct html_tag*));
+        vars->childs[0] = calloc(1, sizeof(struct html_tag));
+        vars->childs[0]->name = strdup("var");
+        vars->childs[0]->content = strdup("bong");
+
+        vars->childs[0]->childs = calloc(1, sizeof(struct html_tag*));
+        vars->childs[0]->childs[0] = calloc(1, sizeof(struct html_tag));
+        vars->childs[0]->childs[0]->name = strdup("child");
+        vars->childs[0]->childs[0]->content = strdup("bing");
+        vars->childs[0]->childs_count = 1;
+
+        vars->childs_count = 1;
+
+        int res = eval(input, vars);
+
+        // res should evaluate to true
+        if (res != 1) {
+            msg(ERROR,"Nested var access test failed");
+            failed++;
+        } else {
+            msg(INFO,"Nested var access test PASSED");
+        }
+    } 
+
+    return failed;
+}
+
+// HCML tests
+
 int test_hcml() {
     int failed = 0;
 
@@ -357,7 +506,10 @@ int test_hcml() {
         struct html_tag* root = html_parser(input);
         int res = hcml_compile(root);
 
-        if (res != 0) {
+        if (res != 0 || 
+            strcmp(root->childs[0]->name, "in") != 0 ||
+            strcmp(root->childs[0]->content, "In variable ") != 0
+        ) {
             msg(ERROR,"HCML nested set and get test failed");
             failed++;
         } else {
@@ -369,8 +521,38 @@ int test_hcml() {
         printf("Compiled: %s\n", compiled);
     }
 
+    // Test 4: if
+    {
+        char* input = "<html> \
+                        <?set id=\"var\">l</?set> \
+                        <?if cond=\"var == 'l'\" type=\"div\" > \
+                            <p>bing</p> \
+                        </?if> \
+                        <?else> \
+                            <p>bong</p> \
+                        </?else> \
+                       </html>";
+        struct html_tag* root = html_parser(input);
+        int res = hcml_compile(root);
+
+        if (res != 0 || 
+            strcmp(root->childs[0]->childs[0]->content, "bing") != 0
+        ) {
+            msg(ERROR,"HCML if test failed");
+            printf("Content: %s\n", root->childs[0]->childs[0]->content);
+            failed++;
+        } else {
+            msg(INFO,"HCML if test PASSED");
+        }
+
+        char* compiled;
+        int size = create_html(root, &compiled);
+        printf("Compiled: %s\n", compiled);
+    }
+
     return failed;
 }
+
 
 
 
@@ -389,7 +571,19 @@ int main() {
         msg(ERROR,"%d getter tests failed", getter_f);
     }
 
-    // HCML tests
+    /*
+        ** HCML tests **
+    */
+
+    // Components Tests :
+
+    // -> EVAL 
+    int eval_f = test_eval();
+    if (eval_f) {
+        msg(ERROR,"%d EVAL tests failed", eval_f);
+    }
+
+    // Complete HCML tests
 
     int hcml_f = test_hcml();
     if (hcml_f) {

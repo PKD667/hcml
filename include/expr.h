@@ -1,11 +1,3 @@
-/*
-    Found at <https://github.com/zserge/expr/>
-
-    expr.h - C expression parser and evaluator
-
-*/
-
-
 #ifndef EXPR_H
 #define EXPR_H
 
@@ -419,82 +411,117 @@ static float expr_eval(struct expr *e) {
 
 static int expr_next_token(const char *s, size_t len, int *flags) {
   unsigned int i = 0;
+
+  // Return 0 if the input length is zero (no tokens to process)
   if (len == 0) {
     return 0;
   }
+
   char c = s[0];
+
+  // Handle comments starting with '#'
   if (c == '#') {
+    // Skip until the end of the line
     for (; i < len && s[i] != '\n'; i++)
       ;
-    return i;
-  } else if (c == '\n') {
+    return i; // Return the length of the comment
+  }
+  // Handle newline character
+  else if (c == '\n') {
+    // Skip all whitespace characters including newlines
     for (; i < len && isspace(s[i]); i++)
       ;
+    // Update flags based on whether we are at the top level
     if (*flags & EXPR_TOP) {
       if (i == len || s[i] == ')') {
+        // Clear the EXPR_COMMA flag if at the end or before a closing parenthesis
         *flags = *flags & (~EXPR_COMMA);
       } else {
+        // Set flags to expect a number, word, open parenthesis, or comma
         *flags = EXPR_TNUMBER | EXPR_TWORD | EXPR_TOPEN | EXPR_COMMA;
       }
     }
-    return i;
-  } else if (isspace(c)) {
+    return i; // Return the number of whitespace characters skipped
+  }
+  // Handle other whitespace characters (excluding newline)
+  else if (isspace(c)) {
+    // Skip all whitespace characters
     while (i < len && isspace(s[i]) && s[i] != '\n') {
       i++;
     }
-    return i;
-  } else if (isdigit(c)) {
+    return i; // Return the number of whitespace characters skipped
+  }
+  // Handle numeric literals
+  else if (isdigit(c)) {
+    // Check if numbers are allowed in the current context
     if ((*flags & EXPR_TNUMBER) == 0) {
-      return -1; // unexpected number
+      return -1; // Unexpected number
     }
+    // Update flags to expect operators or closing parentheses
     *flags = EXPR_TOP | EXPR_TCLOSE;
+    // Consume all digits and decimal points
     while ((c == '.' || isdigit(c)) && i < len) {
       i++;
       c = s[i];
     }
-    return i;
-  } else if (isfirstvarchr(c)) {
+    return i; // Return the length of the numeric token
+  }
+  // Handle identifiers (variables or function names)
+  else if (isfirstvarchr(c)) {
+    // Check if words are allowed in the current context
     if ((*flags & EXPR_TWORD) == 0) {
-      return -2; // unexpected word
+      return -2; // Unexpected word
     }
+    // Update flags to expect operators, open parentheses, or closing parentheses
     *flags = EXPR_TOP | EXPR_TOPEN | EXPR_TCLOSE;
+    // Consume all valid variable characters
     while ((isvarchr(c)) && i < len) {
       i++;
       c = s[i];
     }
-    return i;
-  } else if (c == '(' || c == ')') {
+    return i; // Return the length of the identifier
+  }
+  // Handle parentheses
+  else if (c == '(' || c == ')') {
     if (c == '(' && (*flags & EXPR_TOPEN) != 0) {
+      // Update flags to expect numbers, words, open or closing parentheses
       *flags = EXPR_TNUMBER | EXPR_TWORD | EXPR_TOPEN | EXPR_TCLOSE;
     } else if (c == ')' && (*flags & EXPR_TCLOSE) != 0) {
+      // Update flags to expect operators or closing parentheses
       *flags = EXPR_TOP | EXPR_TCLOSE;
     } else {
-      return -3; // unexpected parenthesis
+      return -3; // Unexpected parenthesis
     }
-    return 1;
-  } else {
+    return 1; // Parenthesis is a single-character token
+  }
+  // Handle operators
+  else {
     if ((*flags & EXPR_TOP) == 0) {
+      // Check for unary operators when an operand is expected
       if (expr_op(&c, 1, 1) == OP_UNKNOWN) {
-        return -4; // missing expected operand
+        return -4; // Missing expected operand
       }
+      // Update flags to expect numbers, words, open parentheses, or unary operators
       *flags = EXPR_TNUMBER | EXPR_TWORD | EXPR_TOPEN | EXPR_UNARY;
-      return 1;
+      return 1; // Unary operator is a single-character token
     } else {
       int found = 0;
+      // Handle multi-character operators
       while (!isvarchr(c) && !isspace(c) && c != '(' && c != ')' && i < len) {
         if (expr_op(s, i + 1, 0) != OP_UNKNOWN) {
-          found = 1;
+          found = 1; // Known operator found
         } else if (found) {
-          break;
+          break; // Operator sequence ended
         }
         i++;
         c = s[i];
       }
       if (!found) {
-        return -5; // unknown operator
+        return -5; // Unknown operator
       }
+      // Update flags to expect numbers, words, or open parentheses
       *flags = EXPR_TNUMBER | EXPR_TWORD | EXPR_TOPEN;
-      return i;
+      return i; // Return the length of the operator token
     }
   }
 }
@@ -610,19 +637,35 @@ static struct expr *expr_create(const char *s, size_t len,
 
   int flags = EXPR_TDEFAULT;
   int paren = EXPR_PAREN_ALLOWED;
+
+  // Debugging: Print initial input
+  //printf  ("Starting expr_create with s=\"%.*s\", len=%zu\n", (int)len, s, len);
+
   for (;;) {
     int n = expr_next_token(s, len, &flags);
+
+    // Debugging: Print the next token and flags
+    //printf  ("expr_next_token returned n=%d, flags=%d\n", n, flags);
+
     if (n == 0) {
+      //printf  ("End of input reached.\n");
       break;
     } else if (n < 0) {
+      //printf  ("Error: expr_next_token returned negative value.\n");
       goto cleanup;
     }
     const char *tok = s;
     s = s + n;
     len = len - n;
+
+    // Debugging: Print current token
+    //printf  ("Current token: \"%.*s\"\n", n, tok);
+
     if (*tok == '#') {
+      //printf  ("Comment encountered, skipping.\n");
       continue;
     }
+
     if (flags & EXPR_UNARY) {
       if (n == 1) {
         switch (*tok) {
@@ -636,6 +679,7 @@ static struct expr *expr_create(const char *s, size_t len,
           tok = "!u";
           break;
         default:
+          //printf  ("Error: Unknown unary operator '%c'.\n", *tok);
           goto cleanup;
         }
         n = 2;
@@ -668,6 +712,7 @@ static struct expr *expr_create(const char *s, size_t len,
           vec_push(&os, str);
           paren = EXPR_PAREN_EXPECTED;
         } else {
+          //printf  ("Error: Invalid function name \"%.*s\".\n", (int)idn, id);
           goto cleanup; /* invalid function name */
         }
       } else if ((v = expr_var(vars, id, idn)) != NULL) {
@@ -688,9 +733,11 @@ static struct expr *expr_create(const char *s, size_t len,
         struct expr_string str = {"(", 1};
         vec_push(&os, str);
       } else {
+        //printf  ("Error: Unexpected '('.\n");
         goto cleanup; // Bad call
       }
     } else if (paren == EXPR_PAREN_EXPECTED) {
+      //printf  ("Error: Expected '('.\n");
       goto cleanup; // Bad call
     } else if (n == 1 && *tok == ')') {
       int minlen = (vec_len(&as) > 0 ? vec_peek(&as).oslen : 0);
@@ -698,10 +745,12 @@ static struct expr *expr_create(const char *s, size_t len,
              *vec_peek(&os).s != '{') {
         struct expr_string str = vec_pop(&os);
         if (expr_bind(str.s, str.n, &es) == -1) {
+          //printf  ("Error: Failed to bind expression \"%.*s\".\n", (int)str.n, str.s);
           goto cleanup;
         }
       }
       if (vec_len(&os) == 0) {
+        //printf  ("Error: Mismatched parentheses.\n");
         goto cleanup; // Bad parens
       }
       struct expr_string str = vec_pop(&os);
@@ -714,11 +763,13 @@ static struct expr *expr_create(const char *s, size_t len,
         if (str.n == 1 && str.s[0] == '$') {
           if (vec_len(&arg.args) < 1) {
             vec_free(&arg.args);
+            //printf  ("Error: Too few arguments for $() function.\n");
             goto cleanup; /* too few arguments for $() function */
           }
           struct expr *u = &vec_nth(&arg.args, 0);
           if (u->type != OP_VAR) {
             vec_free(&arg.args);
+            //printf  ("Error: First argument is not a variable.\n");
             goto cleanup; /* first argument is not a variable */
           }
           for (struct expr_var *v = vars->head; v; v = v->next) {
@@ -768,6 +819,10 @@ static struct expr *expr_create(const char *s, size_t len,
             vec_free(&arg.args);
           } else {
             struct expr_func *f = expr_func(funcs, str.s, str.n);
+            if (!f) {
+              //printf  ("Error: Function \"%.*s\" not found.\n", (int)str.n, str.s);
+              goto cleanup;
+            }
             struct expr bound_func = expr_init();
             bound_func.type = OP_FUNC;
             bound_func.param.func.f = f;
@@ -775,6 +830,7 @@ static struct expr *expr_create(const char *s, size_t len,
             if (f->ctxsz > 0) {
               void *p = calloc(1, f->ctxsz);
               if (p == NULL) {
+                //printf  ("Error: Allocation failed for function context.\n");
                 goto cleanup; /* allocation failed */
               }
               bound_func.param.func.context = p;
@@ -785,10 +841,12 @@ static struct expr *expr_create(const char *s, size_t len,
       }
       paren_next = EXPR_PAREN_FORBIDDEN;
     } else if (!isnan(num = expr_parse_number(tok, n))) {
+      //printf  ("Parsed number: %f\n", num);
       vec_push(&es, expr_const(num));
       paren_next = EXPR_PAREN_FORBIDDEN;
     } else if (expr_op(tok, n, -1) != OP_UNKNOWN) {
       enum expr_type op = expr_op(tok, n, -1);
+      //printf  ("Parsed operator: \"%.*s\"\n", n, tok);
       struct expr_string o2 = {NULL, 0};
       if (vec_len(&os) > 0) {
         o2 = vec_peek(&os);
@@ -810,6 +868,7 @@ static struct expr *expr_create(const char *s, size_t len,
         }
 
         if (expr_bind(o2.s, o2.n, &es) == -1) {
+          //printf  ("Error: Failed to bind operator \"%.*s\".\n", (int)o2.n, o2.s);
           goto cleanup;
         }
         (void)vec_pop(&os);
@@ -824,7 +883,9 @@ static struct expr *expr_create(const char *s, size_t len,
         /* Valid identifier, a variable or a function */
         id = tok;
         idn = n;
+        //printf  ("Found identifier: \"%.*s\"\n", (int)idn, id);
       } else {
+        //printf  ("Error: Invalid token \"%.*s\".\n", n, tok);
         goto cleanup; // Bad variable name, e.g. '2.3.4' or '4ever'
       }
     }
@@ -832,17 +893,26 @@ static struct expr *expr_create(const char *s, size_t len,
   }
 
   if (idn > 0) {
+    //printf  ("Final identifier: \"%.*s\"\n", (int)idn, id);
     vec_push(&es, expr_varref(expr_var(vars, id, idn)));
   }
 
   while (vec_len(&os) > 0) {
     struct expr_string rest = vec_pop(&os);
     if (rest.n == 1 && (*rest.s == '(' || *rest.s == ')')) {
+      //printf  ("Error: Mismatched parentheses at the end.\n");
       goto cleanup; // Bad paren
     }
+    //printf  ("Binding operator: \"%.*s\"\n", (int)rest.n, rest.s);
     if (expr_bind(rest.s, rest.n, &es) == -1) {
+      //printf  ("Error: Failed to bind operator \"%.*s\".\n", (int)rest.n, rest.s);
       goto cleanup;
     }
+  }
+
+  if (vec_len(&es) == 0) {
+    //printf  ("Error: Expression stack is empty.\n");
+    goto cleanup;
   }
 
   result = (struct expr *)calloc(1, sizeof(struct expr));
@@ -859,6 +929,8 @@ static struct expr *expr_create(const char *s, size_t len,
   struct expr e;
   struct expr_arg a;
 cleanup:
+  // Debugging: Cleaning up
+  //printf  ("Cleaning up resources.\n");
   vec_foreach(&macros, m, i) {
     struct expr e;
     vec_foreach(&m.body, e, j) { expr_destroy_args(&e); }
@@ -875,7 +947,6 @@ cleanup:
   }
   vec_free(&as);
 
-  /*vec_foreach(&os, o, i) {vec_free(&m.body);}*/
   vec_free(&os);
   return result;
 }

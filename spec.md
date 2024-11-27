@@ -110,74 +110,41 @@ Its can also be used to get multiple nested fields of a variable.
 ```
 
 ### `<?if>`
-The `<?if>` tag is used to conditionaly include a part of the file. The tag can have a `<?then>` and a `<?else>` tag. The `<?then>` tag is included if the condition is true, and the `<?else>` tag is included if the condition is false. The `true` and `false` values are defined by the `cond` attribute of the `<?if>` tag.
+The `<?if>` tag is used to conditionaly include a part of the file. The tag can have an `<?else>` tag. The content of the `<?if>` tag is included if the condition is true, and the `<?else>` tag is included if the condition is false. The condition is defined in the `cond` attribute of the `<?if>` tag. The `cond` supports logical operations.
 
 ##### Simple example
-
-We can use the `<?if>` tag to include basic HTML code.
 
 **pre-compile:**
 ```html
 <?if cond="true">
-    <p>true</p>
+    <p>Hello</p>
 </?if>
-<?then>
-    <h1> Hello </h1>
-</?then>
+```
+
+**post-compile:**
+```html
+<p>Hello</p>
+```
+
+##### More complex example
+
+**pre-compile:**
+```html
+<?set id="name">
+    John
+</?set>
+
+<?if cond="?name == John">
+    <p>Hello John</p>
+</?if>
 <?else>
-    <h1> Goodbye </h1>
+    <p>Hello Someone else</p>
 </?else>
 ```
 
 **post-compile:**
 ```html
-<h1>Hello</h1>
-```
-
-##### Variable example
-
-We can use the `<?if>` tag to include a variable.
-
-**pre-compile:**
-```html
-<?if cond="john">
-    <?get id="name"/>
-</?if>
-<?then>
-    <h1> Hello John </h1>
-</?then>
-<?else>
-    <h1> I don't know you </h1>
-</?else>
-```
-
-**post-compile:**
-
- - If the name variable is set to `john`:
-```html
-<h1>Hello John</h1>
-```
-- If the name variable is set to `jane`:
-```html
-<h1>I don't know you</h1>
-```
-
-### `<?eval>`
-
-The `<?eval>` tag is used to evaluate a mathematical expression. The expression is defined in the `cond` attribute of the tag. The result of the evaluation is included in the file.
-
-##### Simple example
-
-We can use the `<?eval>` tag to include the result of a mathematical expression.
-
-**pre-compile:**
-```html
-<?eval cond="2+2">
-```
-
-**post-compile:**
-```html
-4
+<p>Hello John</p>
 ```
 
 ### `<?fn>`
@@ -224,15 +191,12 @@ We can use the `<?fn>` tag to define a function that returns a value.
 **pre-compile:**
 ```html
 <?fn id="is_logged_in">
-    <?if cond="john|mary">
-        <?get></name></?get>
+    <?if cond="?name == John">
+        <p>Hi John</p>
     </?if>
-    <?then>
-        <p>Hi <?get></name></?get></p>
-    </?then>
     <?else>
         <p>Not logged in</p>
-        <p>We onmly like john or mary</p>
+        <p>We only like john or mary</p>
     </?else>
 </?fn>
 ```
@@ -262,33 +226,26 @@ The `<?hx-on>` tag is used to handle the result of a parent HTMX request. The ta
 ```html
 <div hx-post="/endpoint">
     <?hx-on>
-        <?if cond="john">
-            <?get>
-                </name>
-            </?get>
-        </?if>
-        <?then>
+        <?if cond="?name = John">
             <p>Welcome <?get></name></?get> </p>
+        </?if>   
         <?else>
                 <p>Not logged in</p>
-        </?then>
+        </?else>
     <?/hx-on>
 </div>
 ```
-We need to keep in mind that the cond inside the <?hx-on> is executed on the server and doesnt have access to the client side variables. In order to pass the client side variables to the server, we need to use the `pass` attribute of the `hx-on` tag.
-
+We need to keep in mind that the cond inside the <?hx-on> is executed on the server and doesnt have access to the client side variables. 
 ```html
 <div hx-post="/endpoint">
-    <?hx-on pass="name">
+    <?hx-on>
         <?if>
             <?fn id="is_logged_in">
                 </?get name="name">
             </?fn>
         </?if>
         <?then>
-            <?return>
-                <p>Welcome <?get></name></?get> </p>
-            </?return>
+            <p>Welcome <?get></name></?get> </p>
         <?else>
             <?return>
                 <p>Not logged in</p>
