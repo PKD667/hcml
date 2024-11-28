@@ -30,7 +30,7 @@ all: $(TARGET)
 # Link object files to create executable
 $(TARGET): $(OBJ)
 	@mkdir -p $(BIN_DIR)
-	$(CC) $(LIBS_A) $(OBJ) -o $(TARGET)
+	$(CC) $(CFLAGS)  $(OBJ) $(LIBS_A) -o $(TARGET)
 	@echo "Linking complete!"
 
 # Compile source files into object files
@@ -39,14 +39,14 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	@echo "Making libs : $(LIBS_A)"
 
 	@mkdir -p $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c $(LIBS_A) $< -o $@
+	$(CC) $(CFLAGS) -c $< $(LIBS_A) -o $@
 	@echo "Compiled $<"
 
 
 # Build test executable
 $(TEST_TARGET): $(OBJ_NO_MAIN) libs
 
-	@echo "Using libs : $(LIBS_A)"
+	@echo "Using libs : $(LIBS_A)" 
 
 	@mkdir -p $(BIN_DIR)
 	$(CC) test.c -lm $(SRC) $(LIBS_A) -o $(TEST_TARGET)
@@ -63,7 +63,7 @@ libs:
 
 # Build and run tests
 test: $(TEST_TARGET)
-	./$(TEST_TARGET)
+	./$(TEST_TARGET) test all
 
 
 

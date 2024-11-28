@@ -1,0 +1,31 @@
+<html lang="en">
+    <?set id="variable" type="p">
+        Hello, World !
+    </?set>
+
+    <?set id="test" type="p">test</?set>
+
+    <?if cond="test == 'test'">
+        <p>Test is equal to test</p>
+    </?if>
+
+    <head>
+        <title>Test</title>
+    </head>
+
+    <?load src="content.html"/>
+
+    <?call id="time" type="p"/>
+
+    <div id="res"></div>
+
+    <?get id="variable" type="p"/>
+
+    <button hx-get="/time" hx-target="#res">
+        <?hx-on type="div">
+            <p> Hi from the server </p>
+        </?hx-on>
+        Get Time
+    </button>
+
+</html>

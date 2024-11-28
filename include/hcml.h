@@ -51,6 +51,9 @@ int destroy_html(struct html_tag* html);
 int hcml_compile(struct html_tag* html);
 int hcml_eval(struct html_tag* html,struct html_tag** vars,size_t* vars_childs_alloc);
 
+// get the standard functions
+struct html_tag* get_stdlib();
+
 // EXPR evaluation
 int eval(char* expr,struct html_tag* vars);
 

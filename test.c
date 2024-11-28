@@ -8,6 +8,28 @@
 #include "include/cutils.h"
 #include "include/hcmx.h"
 
+
+// UTILS FOR TEST
+
+struct html_tag* hcml_test_fn(struct html_tag* tag) {
+
+    if (tag == NULL) {
+        return NULL;
+    }
+
+    if (strcmp(tag->content,"arg") != 0) {
+        printf("Error: invalid content\n");
+        return NULL;
+    }
+
+    // create a new tag
+    struct html_tag* new_tag = calloc(1,sizeof(struct html_tag));
+    new_tag->name = strdup("p");
+    new_tag->content = strdup("Hello");
+    return new_tag;
+}
+
+
 /*
  BASE HTML PARSER TEST SUITE
 */
@@ -121,6 +143,10 @@ int test_parser() {
             msg(INFO,"Self-closing tag test PASSED");
         }
 
+        char* code;
+        create_html(result,&code);
+        printf("Code: %s\n",code);
+
         // free result
         destroy_html(result);
     }
@@ -187,49 +213,6 @@ int test_parser() {
 
 
 
-int test_file(char* infile, char* outfile) {
-
-    
-    char *file_content;
-    long file_size = rdfile(infile,&file_content);
-
-    if (file_size < 0) {
-        msg(ERROR,"Error: could not read file %s (%d)","test_file",file_size);
-        return 1;
-    }
-
-    struct html_tag* root = html_parser(file_content);
-
-    assert(root != NULL);
-    assert(strcmp(root->name, "html") == 0);
-
-    // create_html(root, &file_content);
-
-    char* new_html = NULL;
-    int size = create_html(root, &new_html);
-
-    printf("New html: %s\n", new_html);
-
-    // re parse
-
-    struct html_tag* new_root = html_parser(new_html);
-
-    assert(new_root != NULL);
-
-    assert(strcmp(new_root->name, "html") == 0);
-
-    // write to file
-    int wr = wrnfile(outfile,new_html,size);
-    if (wr < 0) {
-        msg(ERROR,"Error: could not write file %s (%d)","test2.html",wr);
-        return 1;
-    }
-
-    destroy_html(root);
-    destroy_html(new_root);
-
-    return 0;
-}
 
 
 
@@ -550,46 +533,185 @@ int test_hcml() {
         printf("Compiled: %s\n", compiled);
     }
 
+    // Test 5: call
+    {
+        char* input = "<html> \
+                        <?set id=\"fn\" type=\"div\"> \
+                            <p>bing</p> \
+                        </?set> \
+                        <?call id=\"fn\">arg</?call> \
+                       </html>";
+        struct html_tag* root = html_parser(input);
+
+        struct html_tag* vars = calloc(1, sizeof(struct html_tag));
+        vars->name = strdup("vars");
+
+        printf("Allocating vars\n");
+
+        size_t vars_childs_alloc = 16;
+        vars->childs_count = 1;
+        vars->childs = calloc(vars_childs_alloc,sizeof(struct html_tag*));
+
+        printf("Allocating functions\n");
+
+        // init default functions
+        struct html_tag* fns = calloc(1, sizeof(struct html_tag));
+        fns->name = strdup("functions");
+        fns->childs_count = 1;
+
+        printf("Allocating test fn\n");
+
+        fns->childs = calloc(2, sizeof(struct html_tag*));
+        fns->childs[0] = calloc(1, sizeof(struct html_tag));
+        fns->childs[0]->name = strdup("fn");
+        fns->childs[0]->content = (void*)hcml_test_fn;
+
+        // other stuff
+        vars->childs[0] = fns;
+
+        // evaluate the hcml tags
+        printf("Evaluating hcml tags\n");
+        int eval_res = hcml_eval(root, &vars, &vars_childs_alloc);
+        printf("Eval res: %d\n",eval_res);
+        if (eval_res != 0 ||
+            strcmp(root->childs[0]->content, "Hello") != 0
+        ) {
+            msg(ERROR,"HCML call test failed");
+            printf("Content: %s\n", root->childs[0]->content);
+            failed++;
+        } else {
+            msg(INFO,"HCML call test PASSED");
+        }
+
+        char* compiled;
+        int size = create_html(root, &compiled);
+        printf("Compiled: %s\n", compiled);
+    }
+
     return failed;
+}
+
+
+void* test_funcs[][2] = {
+    {"parser", test_parser},
+    {"getter", test_getters},
+    {"eval", test_eval},
+    {"hcml", test_hcml}
+};
+
+
+// RUN FILE
+
+int test_file(char* infile, char* outfile) {
+
+    
+    char *file_content;
+    long file_size = rdfile(infile,&file_content);
+
+    if (file_size < 0) {
+        msg(ERROR,"Error: could not read file %s (%d)","test_file",file_size);
+        return 1;
+    }
+
+    struct html_tag* root = html_parser(file_content);
+
+    assert(root != NULL);
+    assert(strcmp(root->name, "html") == 0);
+
+    assert(root != NULL);
+
+    if (hcml_compile(root) != 0) {
+        msg(ERROR,"Error: could not compile new root");
+        return 1;
+    }
+
+    printf("Root: %p\n",root);
+
+    char* new_html = NULL;
+    int size = create_html(root, &new_html);
+
+    printf("New html: %s\n", new_html);
+
+    assert(strcmp(root->name, "html") == 0);
+
+    // write to file
+    int wr = wrnfile(outfile,new_html,size);
+    if (wr < 0) {
+        msg(ERROR,"Error: could not write file %s (%d)","test2.html",wr);
+        return 1;
+    }
+
+    destroy_html(root);
+
+    return 0;
 }
 
 
 
 
-int main() {
+int main(int argc, char** argv) {
 
     DEBUG = 4;
 
-    
-    int parser_f = test_parser();
-    if (parser_f) {
-        msg(ERROR,"%d parser tests failed", parser_f);
+    if (argc < 2) {
+        msg(ERROR,"Usage: %s [test|run] <unit>",argv[0]);
+        return 1;
+    }
+
+    if (strcmp(argv[1], "test") == 0) {
+        
+        if (argc < 3) {
+            msg(ERROR,"Usage: %s test <unit>",argv[0]);
+            return 1;
+        }
+
+        if (strcmp(argv[2], "all") == 0) {
+            int failed = 0;
+            for (int i = 0; i < sizeof(test_funcs) / sizeof(test_funcs[0]); i++) {
+                int (*fn)() = test_funcs[i][1];
+                failed += fn();
+            }
+
+            if (failed) {
+                msg(FATAL,"%d tests failed",failed);
+            }
+
+            return failed;
+        } else {
+            for (int i = 0; i < sizeof(test_funcs) / sizeof(test_funcs[0]); i++) {
+                if (strcmp(test_funcs[i][0], argv[2]) == 0) {
+                    int (*fn)() = test_funcs[i][1];
+                    int failed = fn();
+                    if (failed) {
+                        msg(FATAL,"%d tests faild for %s",failed,argv[2]);
+                    }
+
+                    return failed;
+                }
+            }
+
+            msg(ERROR,"Unknown test unit %s",argv[2]);
+            return 1;
+        }
+    } else if (strcmp(argv[1], "run") == 0) {
+
+        if (argc < 3) {
+            msg(ERROR,"Usage: %s run <infile> [outfile]",argv[0]);
+            return 1;
+        }
+
+        if (argc == 3) {
+            return test_file(argv[2], "out.html");
+        }
+
+        return test_file(argv[2], argv[3]);
+    } else {
+        msg(ERROR,"Unknown command %s",argv[1]);
+        return 1;
+
     }
     
-    int getter_f = test_getters();
-    if (getter_f) {
-        msg(ERROR,"%d getter tests failed", getter_f);
-    }
-
-    /*
-        ** HCML tests **
-    */
-
-    // Components Tests :
-
-    // -> EVAL 
-    int eval_f = test_eval();
-    if (eval_f) {
-        msg(ERROR,"%d EVAL tests failed", eval_f);
-    }
-
-    // Complete HCML tests
-
-    int hcml_f = test_hcml();
-    if (hcml_f) {
-        msg(ERROR,"%d HCML tests failed", hcml_f);
-    }
-
+    
     return 0;
 
 }

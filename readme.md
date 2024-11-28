@@ -33,18 +33,12 @@ The custom markup language is a simple language that allows you to define routes
         <p>Welcome, <?get id="user"><name></name></?get>!</p>
         <div hx-post="/update">
             <button>Click Me</button>
-            <?hx-on>
-                <?if>
-                    <?get id="user"><loggedIn></loggedIn></?get>
+            <?hx-on pass="user">
+                <?if cond="user#loggedIn == 'true'">
+                    <p>Thank you for clicking the button, <?get id="user"><name></name></?get>!</p>
                 </?if>
-                <?then>
-                    <?return>
-                        <p>Thank you for clicking the button, <?get id="user"><name></name></?get>!</p>
-                    </?return>
                 <?else>
-                    <?return>
-                        <p>Please log in to continue.</p>
-                    </?return>
+                    <p>Please log in to continue.</p>
                 <?/then>
             <?/hx-on>
         </div>
@@ -62,7 +56,7 @@ The custom markup language is a simple language that allows you to define routes
     <body>
         <h1>My Awesome Web Page</h1>
         <p>Welcome, John Doe!</p>
-        <div hx-post="/update">
+        <div hx-post="/update" hx-var=".. some stuf to pass user .."> 
             <button>Click Me</button>
         </div>
     </body>
@@ -75,13 +69,9 @@ The custom markup language is a simple language that allows you to define routes
     <?get id="user"><loggedIn></loggedIn></?get>
 </?if>
 <?then>
-    <?return>
         <p>Thank you for clicking the button, <?get id="user"><name></name></?get>!</p>
-    </?return>
 <?else>
-    <?return>
         <p>Please log in to continue.</p>
-    </?return>
 <?/then>
 ```
 

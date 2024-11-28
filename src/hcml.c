@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 #include <stdbool.h>
 
@@ -11,6 +12,7 @@
 #include "../include/hcml.h"
 #include "../include/cutils.h"
 #include "../include/hcmx.h"
+#include "../include/context.h"
 
 struct html_tag* get_var(struct html_tag* vars, char* name) {
     dbg(3, "Searching for %s in %d vars", name, vars->childs_count);
@@ -317,12 +319,14 @@ int hcml_parse_call(struct html_tag* call, struct html_tag** vars, size_t* vars_
     struct html_tag* res = fn_ptr(call);
 
     dbg(3, "Got result %s from function %s", res->name, fn_name);
+    dbg(3,"Result content: %s", res->content);
 
     // replace the call tag with the result
     call->parent->childs[get_index(call)] = res;
 
     destroy_html(call);
 
+    dbg(3, "Call tag processed");
     return 0;
 }
 
@@ -349,11 +353,14 @@ int hcml_eval(struct html_tag* html, struct html_tag** vars, size_t* vars_childs
             if (strcmp(html->name, hcml_funcs[i][0]) == 0) {
                 // call the function
                 int (*fn)(struct html_tag*, struct html_tag**, size_t*) = hcml_funcs[i][1];
+                dbg(3, "Calling processing function for %s tag", html->name);
                 int res = fn(html, vars, vars_childs_alloc);
+                dbg(3, "Processing function returned %d", res);
                 if (res != 0) {
                     return res;
                 }
                 found = 1;
+                dbg(3, "HCML tag done");
                 break;
             }
         }
@@ -388,9 +395,13 @@ int hcml_eval(struct html_tag* html, struct html_tag** vars, size_t* vars_childs
         free(childs);
     }
 
-    dbg(3, "HCML tag %s evaluated", html->name ? html->name : "text node");
+    dbg(3, "HCML tag evaluated");
     return 0;
 }
+
+
+
+
 
 int hcml_compile(struct html_tag* html) {
     printf("Compiling code from %s\n", html->name ? html->name : "root");
@@ -406,8 +417,15 @@ int hcml_compile(struct html_tag* html) {
     vars->name = strdup("vars");
 
     size_t vars_childs_alloc = 16;
-    vars->childs_count = 0;
+    vars->childs_count = 1;
     vars->childs = malloc(vars_childs_alloc * sizeof(struct html_tag*));
+
+    // init default functions
+    struct html_tag* fns = get_stdlib();
+    // other stuff
+    vars->childs[0] = fns;
+
+
     // evaluate the hcml tags
     dbg(3, "Evaluating hcml tags");
     int eval_res = hcml_eval(html, &vars, &vars_childs_alloc);
@@ -427,8 +445,8 @@ struct htmx_context* process_htmx(struct html_tag* root) {
     struct html_tag** on_tags = get_tags_by_name(root, "?hx-on");
 
     struct htmx_context* ctx = calloc(1, sizeof(struct htmx_context));
-    ctx->capacity = 16;
-    ctx->handlers = calloc(ctx->capacity, sizeof(struct htmx_handler*));
+    ctx->handlers_capacity = 16;
+    ctx->handlers = calloc(ctx->handlers_capacity, sizeof(struct htmx_handler*));
 
     for (int i = 0; on_tags[i]; i++) {
         struct html_tag* on_tag = on_tags[i];
@@ -441,39 +459,53 @@ struct htmx_context* process_htmx(struct html_tag* root) {
             continue;
         }
 
+        char* val;
+
         enum http_method method;
-        if (strcmp(htmx_tag->name, "hx-get") == 0) {
-            handler->method = GET;
-        } else if (strcmp(htmx_tag->name, "hx-post") == 0) {
-            handler->method = POST;
-        } else if (strcmp(htmx_tag->name, "hx-put") == 0) {
-            handler->method = PUT;
-        } else if (strcmp(htmx_tag->name, "hx-delete") == 0) {
-            handler->method = DELETE;
+        if ((val = get_attribute_value(htmx_tag, "hx-get"))) {
+            method = GET;
+        } else if ((val = get_attribute_value(htmx_tag, "hx-post"))) {
+            method = POST;
+        } else if ((val = get_attribute_value(htmx_tag, "hx-put"))) {
+            method = PUT;
+        } else if ((val = get_attribute_value(htmx_tag, "hx-delete"))) {
+            method = DELETE;
         } else {
-            msg(ERROR, "Invalid method %s", htmx_tag->name);
+            msg(ERROR, "Missing method attribute");
             free(handler);
             continue;
         }
+        dbg(3, "Method: %s", http_method_str(method));
 
         // Get path
-        handler->path = get_attribute_value(htmx_tag, "hx-path");
+        handler->path = strdup(val);
         if (!handler->path) {
             msg(ERROR, "Missing hx-path attribute");
             free(handler);
             continue;
         }
+        dbg(3, "Path: %s", handler->path);
 
         // Get code
         handler->hcmx_handler = on_tag;
 
-        // Add handler to context
-        if (ctx->count >= ctx->capacity) {
-            ctx->capacity *= 2;
-            ctx->handlers = realloc(ctx->handlers, ctx->capacity * sizeof(struct htmx_handler*));
+        char* type;
+        type = get_attribute_value(htmx_tag, "type");
+        if (type == NULL) {
+            type = DEFAULT_TAG_TYPE;
         }
-        ctx->handlers[ctx->count] = handler;
-        ctx->count++;
+        on_tag->name = strdup(type);
+
+        // Add handler to context
+        if (ctx->handlers_count >= ctx->handlers_capacity) {
+            ctx->handlers_capacity *= 2;
+            ctx->handlers = realloc(ctx->handlers, ctx->handlers_capacity * sizeof(struct htmx_handler*));
+        }
+        ctx->handlers[ctx->handlers_count] = handler;
+        ctx->handlers_count++;
+
+        // Remove the hx-on tag
+        pop_tag(on_tag);
     }
 
     return ctx;

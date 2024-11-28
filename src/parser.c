@@ -234,7 +234,16 @@ struct html_tag* html_parser(char* html_string) {
                 // if is a self closing tag
                 if (html_string[i-1] == '/') {
                     dbg(3,"self closing tag");
+
                     current_tag->self_closing = 1;
+
+                    // if root tag then exit
+                    if (current_tag->parent == NULL) {
+                        // self closing root tag
+                        dbg(3,"self closing root tag");
+                        break;
+                    }
+
                     current_tag = current_tag->parent;
                     continue;
                 }
@@ -290,8 +299,10 @@ struct html_tag* html_parser(char* html_string) {
     return current_tag;
 }
 
-int destroy_html(struct html_tag* html)
-{
+int destroy_html(struct html_tag* html) {
+
+    dbg(3, "Destroying html %s", html->name);
+
     if (html == NULL)
     {
         return 0;
@@ -309,8 +320,10 @@ int destroy_html(struct html_tag* html)
     for (int i = 0; i < html->attributes_count; i++)
     {
         if (html->attributes[i] != NULL) {
+            dbg(3, "Freeing attribute %s=%s", html->attributes[i]->name, html->attributes[i]->value);
             if (html->attributes[i]->name != NULL) free(html->attributes[i]->name);
             if (html->attributes[i]->value != NULL) free(html->attributes[i]->value);
+            dbg(3, "Freeing attribute");
             free(html->attributes[i]);
         }
     }
@@ -463,6 +476,8 @@ int create_html(struct html_tag* html, char** code) {
     strcat(*code, html->name);
     strcat(*code, ">");
     code_len = required_size - 1;
+
+    dbg(3, "HTML code created");
 
     return code_len;
 }
