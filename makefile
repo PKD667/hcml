@@ -1,6 +1,6 @@
 # Compiler and flags
 CC = gcc
-CFLAGS = -Wall -Wextra -lm
+CFLAGS = -Wall -Wextra 
 TEST_FLAGS = $(CFLAGS) -g
 
 # Directories
@@ -31,9 +31,9 @@ all: $(TARGET)
 
 # Link object files to create executable
 $(TARGET): $(OBJ)
-	@mkdir -p $(BIN_DIR)
-	$(CC) $(CFLAGS) $(OBJ) $(LIBS_A) -o $(TARGET)
-	@echo "Linking complete!"
+    @mkdir -p $(BIN_DIR)
+    $(CC) $(CFLAGS) $(OBJ) $(LIBS_A) -lm -o $(TARGET)
+    @echo "Linking complete!"
 
 # Compile source files into object files
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
@@ -41,7 +41,7 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	@echo "Making libs : $(LIBS_A)"
 
 	@mkdir -p $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c $< $(LIBS_A) -o $@
+	$(CC) $(CFLAGS) -lm -c $< $(LIBS_A) -o $@
 	@echo "Compiled $<"
 
 
