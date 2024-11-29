@@ -31,9 +31,9 @@ all: $(TARGET)
 
 # Link object files to create executable
 $(TARGET): $(OBJ)
-    @mkdir -p $(BIN_DIR)
-    $(CC) $(CFLAGS) $(OBJ) $(LIBS_A) -lm -o $(TARGET)
-    @echo "Linking complete!"
+	@mkdir -p $(BIN_DIR)
+	$(CC) $(CFLAGS) $(OBJ) $(LIBS_A) -lm -o $(TARGET)
+	@echo "Linking complete!"
 
 # Compile source files into object files
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
