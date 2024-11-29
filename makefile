@@ -14,6 +14,8 @@ INC_DIR = include
 SRC = $(wildcard $(SRC_DIR)/*.c)
 OBJ = $(SRC:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 
+SRC_NO_MAIN = $(filter-out $(SRC_DIR)/main.c, $(SRC))
+
 
 
 LIBS = cutils
@@ -49,7 +51,7 @@ $(TEST_TARGET): $(OBJ_NO_MAIN) libs
 	@echo "Using libs : $(LIBS_A)" 
 
 	@mkdir -p $(BIN_DIR)
-	$(CC) test.c -lm $(SRC) $(LIBS_A) -o $(TEST_TARGET)
+	$(CC) test/*.c -lm $(SRC_NO_MAIN) $(LIBS_A) -o $(TEST_TARGET)
 	@echo "Test binary built!"
 
 # make the libs

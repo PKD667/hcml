@@ -300,9 +300,6 @@ struct html_tag* html_parser(char* html_string) {
 }
 
 int destroy_html(struct html_tag* html) {
-
-    dbg(3, "Destroying html %s", html->name);
-
     if (html == NULL)
     {
         return 0;
@@ -320,10 +317,10 @@ int destroy_html(struct html_tag* html) {
     for (int i = 0; i < html->attributes_count; i++)
     {
         if (html->attributes[i] != NULL) {
-            dbg(3, "Freeing attribute %s=%s", html->attributes[i]->name, html->attributes[i]->value);
+            //dbg(3, "Freeing attribute %s=%s", html->attributes[i]->name, html->attributes[i]->value);
             if (html->attributes[i]->name != NULL) free(html->attributes[i]->name);
             if (html->attributes[i]->value != NULL) free(html->attributes[i]->value);
-            dbg(3, "Freeing attribute");
+            //dbg(3, "Freeing attribute");
             free(html->attributes[i]);
         }
     }
