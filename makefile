@@ -27,14 +27,14 @@ all: $(TARGET)
 # Link object files to create executable
 $(TARGET): $(OBJ) cutils
 	@mkdir -p $(BIN_DIR)
-	$(CC) $(CFLAGS) $(OBJ) lib/cutils/cutils.a -lm -o $(TARGET)
+	$(CC) $(CFLAGS) $(OBJ) lib/cutils/cutils.a -o $(TARGET) -lm
 	@echo "Linking complete!"
 
 # Compile source files into object files
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 
 	@mkdir -p $(OBJ_DIR)
-	$(CC) $(CFLAGS) -lm -c $< lib/cutils/cutils.a -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 	@echo "Compiled $<"
 
 
@@ -42,7 +42,7 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 $(TEST_TARGET): $(OBJ_NO_MAIN) cutils
 
 	@mkdir -p $(BIN_DIR)
-	$(CC) -lm test/*.c -lm $(SRC_NO_MAIN) lib/cutils/cutils.a -o $(TEST_TARGET)
+	$(CC) test/*.c $(SRC_NO_MAIN) lib/cutils/cutils.a -o $(TEST_TARGET) -lm
 	@echo "Test binary built!"
 
 # make the libs
