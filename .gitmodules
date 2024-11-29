@@ -1,3 +1,0 @@
-[submodule "cutils"]
-	path = lib/cuitls
-	url = https://github.com/PKD667/cutils
