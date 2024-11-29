@@ -17,11 +17,6 @@ OBJ = $(SRC:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 SRC_NO_MAIN = $(filter-out $(SRC_DIR)/main.c, $(SRC))
 
 
-
-LIBS = cutils
-
-LIBS_A = $(addsuffix .a, $(addprefix lib/$(LIBS)/, $(LIBS)))
-
 # Output executables
 TARGET = $(BIN_DIR)/hcml
 TEST_TARGET = $(BIN_DIR)/test
@@ -30,38 +25,31 @@ TEST_TARGET = $(BIN_DIR)/test
 all: $(TARGET)
 
 # Link object files to create executable
-$(TARGET): $(OBJ)
+$(TARGET): $(OBJ) cutils
 	@mkdir -p $(BIN_DIR)
-	$(CC) $(CFLAGS) $(OBJ) $(LIBS_A) -lm -o $(TARGET)
+	$(CC) $(CFLAGS) $(OBJ) lib/cutils/cutils.a -lm -o $(TARGET)
 	@echo "Linking complete!"
 
 # Compile source files into object files
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 
-	@echo "Making libs : $(LIBS_A)"
-
 	@mkdir -p $(OBJ_DIR)
-	$(CC) $(CFLAGS) -lm -c $< $(LIBS_A) -o $@
+	$(CC) $(CFLAGS) -lm -c $< lib/cutils/cutils.a -o $@
 	@echo "Compiled $<"
 
 
 # Build test executable
-$(TEST_TARGET): $(OBJ_NO_MAIN) libs
-
-	@echo "Using libs : $(LIBS_A)" 
+$(TEST_TARGET): $(OBJ_NO_MAIN) cutils
 
 	@mkdir -p $(BIN_DIR)
-	$(CC) -lm test/*.c -lm $(SRC_NO_MAIN) $(LIBS_A) -o $(TEST_TARGET)
+	$(CC) -lm test/*.c -lm $(SRC_NO_MAIN) lib/cutils/cutils.a -o $(TEST_TARGET)
 	@echo "Test binary built!"
 
 # make the libs
-libs:
-	@echo "Making libs : $(LIBS)"
-
-	@for lib in $(LIBS); do \
-	    cp -f lib/$$lib/$$lib.h include/; \
-	    $(MAKE) -C lib/$$lib/; \
-	done
+cutils:
+	@echo "Making cutils"
+	@make -C lib/cutils
+	@echo "cutils made"
 
 # Build and run tests
 test: $(TEST_TARGET)

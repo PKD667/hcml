@@ -98,14 +98,10 @@ struct server_context {
     struct htmx_context* htmx_ctx;
 };
 
-// add a file to the server context
-int srv_ctx_add_file(struct server_context* ctx, struct web_file file);
+
 
 // create a new server context
 struct server_context* srv_ctx_create(int port, char* web_root);
-
-// get a file from the server context
-struct web_file* srv_ctx_get_file(struct server_context* ctx, char* path);
 
 // destroy a server context
 int srv_ctx_destroy(struct server_context* ctx);
