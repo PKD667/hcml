@@ -32,7 +32,7 @@ all: $(TARGET)
 # Link object files to create executable
 $(TARGET): $(OBJ)
 	@mkdir -p $(BIN_DIR)
-	$(CC) $(CFLAGS)  $(OBJ) $(LIBS_A) -o $(TARGET)
+	$(CC) $(CFLAGS) $(OBJ) $(LIBS_A) -o $(TARGET)
 	@echo "Linking complete!"
 
 # Compile source files into object files
@@ -51,7 +51,7 @@ $(TEST_TARGET): $(OBJ_NO_MAIN) libs
 	@echo "Using libs : $(LIBS_A)" 
 
 	@mkdir -p $(BIN_DIR)
-	$(CC) test/*.c -lm $(SRC_NO_MAIN) $(LIBS_A) -o $(TEST_TARGET)
+	$(CC) -lm test/*.c -lm $(SRC_NO_MAIN) $(LIBS_A) -o $(TEST_TARGET)
 	@echo "Test binary built!"
 
 # make the libs
