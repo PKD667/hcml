@@ -14,7 +14,7 @@ char* get_variable_value(struct html_tag* vars, char* name) {
 
     dbg(3, "Getting value of '%s'", name);
 
-    // if var has a dot, it means it's a nested variable
+    // if var has a # it means it's a nested variable
     char* child_name = NULL;
     char* dot = strchr(v_name, '#');
     if (dot != NULL) {

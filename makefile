@@ -21,6 +21,9 @@ SRC_NO_MAIN = $(filter-out $(SRC_DIR)/main.c, $(SRC))
 TARGET = $(BIN_DIR)/hcml
 TEST_TARGET = $(BIN_DIR)/test
 
+# Install stuff
+DESTDIR = /usr
+
 # Default target
 all: $(TARGET)
 
@@ -55,7 +58,9 @@ cutils:
 test: $(TEST_TARGET)
 	./$(TEST_TARGET) test all
 
-
+install: $(TARGET)
+	install -d $(DESTDIR)/bin
+	install -m 755 $(TARGET) $(DESTDIR)/bin
 
 # Clean build files
 clean:

@@ -198,16 +198,25 @@ int hcml_parse_if(struct html_tag* if_tag, struct html_tag** vars, size_t* vars_
         if (if_tag->parent->childs_count > 1 && 
             strcmp(if_tag->parent->childs[get_index(if_tag) + 1]->name,"?else") == 0) {
             
+            dbg(3, "Else tag found");
+
             // the else tag is executed
-            struct html_tag* else_tag = &if_tag->parent[get_index(if_tag) + 1];
-            // check the name of the else tag
-            if (else_tag->name == NULL) {
-                else_tag->name = DEFAULT_TAG_TYPE;
+            struct html_tag* else_tag = if_tag->parent->childs[get_index(if_tag) + 1];
+            // search for type
+            char* type = get_attribute_value(else_tag, "type");
+            if (type == NULL) {
+                type = DEFAULT_TAG_TYPE;
             }
+            free(else_tag->name);
+            else_tag->name = strdup(type);
+
+            dbg(3, "Else tag good");
         }
 
         pop_tag(if_tag);
         destroy_html(if_tag);
+
+        return 0;
 
     } 
     dbg(3, "Condition %s is true", condition);
@@ -242,10 +251,13 @@ int hcml_parse_if(struct html_tag* if_tag, struct html_tag** vars, size_t* vars_
     if (if_tag->parent->childs_count > get_index(if_tag) && 
             strcmp(if_tag->parent->childs[get_index(if_tag) + 1]->name,"?else") == 0) {
             
-        dbg(3, "Else tag found");
+        dbg(3, "Removing else tag");
         // REMOVE THE ELSE TAG
-        pop_tag(if_tag->parent->childs[get_index(if_tag) + 1]);
-        destroy_html(if_tag->parent->childs[get_index(if_tag) + 1]);
+        struct html_tag* else_tag = if_tag->parent->childs[get_index(if_tag) + 1];
+        dbg(3,"Else tag is %s", else_tag->name);
+        remove_tag(else_tag);
+        dbg(3,"Else tag removed");
+
     }
 
 
@@ -339,6 +351,8 @@ void* hcml_funcs[][2] = {
     {"?call", hcml_parse_call}
 };
 
+
+
 int hcml_eval(struct html_tag* html, struct html_tag** vars, size_t* vars_childs_alloc) {
     if (html == NULL) {
         dbg(3, "NULL tag");
@@ -369,30 +383,38 @@ int hcml_eval(struct html_tag* html, struct html_tag** vars, size_t* vars_childs
             return 1;
         }
     } else {
-        // loop over the children
-        dbg(3, "Evaluating children of %s", html->name ? html->name : "text node");
-        // copy the childs
-        struct html_tag** childs = calloc(html->childs_count, sizeof(struct html_tag*));
-        int count = html->childs_count;
-        printf("Allocated %d\n", html->childs_count);
-        for (int i = 0; i < html->childs_count; i++) {
-            childs[i] = html->childs[i];
-        }
 
-        // evaluate the childs
-        for (int i = 0; i < count; i++) {
-            printf("Evaluating child %d\n", i);
-            // checking for possible chnages in structure
-            if (html->childs_count != count) {
-                msg(WARNING, "structure changed");
-                if (i > html->childs_count) {
-                    dbg(3, "Skipping child %d", i);
-                    break;
-                }
+        // our goal is to evaluate ALL the tags in childs, but there are a few problems
+        // 1. Sometimes, a tag can get removed, meaning an index isn't enough
+        // 2. Sometimes, a tag can get replaced.
+        // 3. Sometimes, a tag can get added.
+
+        // the new approach will consist in keeping track of the evaluated tags in an array
+        // make sure all the childq are in the array
+
+        int index = 0;
+        struct html_tag* current_tag;
+        while (index < html->childs_count) {
+
+            dbg(3, "Evaluating child %d", index);
+
+
+            current_tag = html->childs[index];
+
+            // evaluate the tag
+            hcml_eval(current_tag, vars, vars_childs_alloc);
+
+            // check for changes in the structure
+            if (html->childs[index] != current_tag) {
+                // the tag has been replaced 
+                // we'll keep the index the same
+                continue;
             }
-            hcml_eval(childs[i], vars, vars_childs_alloc);
+
+            index++;
         }
-        free(childs);
+        
+
     }
 
     dbg(3, "HCML tag evaluated");

@@ -224,3 +224,32 @@ char* html_to_string(struct html_tag* html) {
     return str;
 }
 
+void visualize_html_tree(struct html_tag* html, int depth) {
+    // Indentation
+    for (int i = 0; i < depth; i++) {
+        printf("|   ");
+    }
+    // Print tag name
+    printf("|-- %s\n", html->name);
+
+    // Print attributes
+    if (html->attributes_count > 0) {
+        for (int i = 0; i <= depth; i++) {
+            printf("|   ");
+        }
+        printf("|-- [Attributes]\n");
+        for (int i = 0; i < html->attributes_count; i++) {
+            for (int j = 0; j <= depth + 1; j++) {
+                printf("|   ");
+            }
+            printf("|-- %s = %s\n", html->attributes[i]->name, html->attributes[i]->value);
+        }
+    }
+
+    // Recursively print child nodes
+    if (html->childs_count > 0) {
+        for (int i = 0; i < html->childs_count; i++) {
+            visualize_html_tree(html->childs[i], depth + 1);
+        }
+    }
+}

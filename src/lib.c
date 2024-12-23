@@ -24,6 +24,7 @@ struct html_tag* hcml_fn_time(struct html_tag* tag) {
 }
 
 
+
 void* hcml_funcs_stdlib[][2] = {
     {"time", hcml_fn_time}
 };

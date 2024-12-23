@@ -310,11 +310,11 @@ int destroy_html(struct html_tag* html) {
     // and free the memory
     // free the attributes
     // free the tag
-    for (int i = 0; i < html->childs_count; i++) {
+    for (int i = 0; (i < html->childs_count) && (html->childs != NULL); i++) {
         if (html->childs[i] != NULL) destroy_html(html->childs[i]);
     }
     // free the attributes
-    for (int i = 0; i < html->attributes_count; i++)
+    for (int i = 0; (i < html->attributes_count) && (html->attributes != NULL); i++)
     {
         if (html->attributes[i] != NULL) {
             //dbg(3, "Freeing attribute %s=%s", html->attributes[i]->name, html->attributes[i]->value);

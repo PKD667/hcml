@@ -8,6 +8,9 @@
     <?if cond="test == 'test'">
         <p>Test is equal to test</p>
     </?if>
+    <?else>
+        <p>Test is equal to :</p><?get id="test" type="p"/>
+    </?else>
 
     <head>
         <title>Test</title>

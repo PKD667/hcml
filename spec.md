@@ -134,7 +134,7 @@ The `<?if>` tag is used to conditionaly include a part of the file. The tag can 
     John
 </?set>
 
-<?if cond="?name == John">
+<?if cond="name == 'John'">
     <p>Hello John</p>
 </?if>
 <?else>
@@ -147,73 +147,20 @@ The `<?if>` tag is used to conditionaly include a part of the file. The tag can 
 <p>Hello John</p>
 ```
 
-### `<?fn>`
+### `<?call>`
 
-The `<?fn>` tag is used to define a function in the current file. The function can be called with the `<?call>` tag. The function will return it's content, in the form of html code after it's evaluation by thh HCML compiler. A function can take arguments. The arguments are passed as a variable and they are accessed with the `<?get>` tag. The argument are the body of the `<?call>` tag.  The `cond` supports logical operations.
+The `<?call>` tag is used to call an extern function. The function is defined in the `id` attribute of the `<?call>` tag. The function arguments are its childrens.
 
-##### Simple example
-
-We can use the `<?fn>` tag to define a function that returns a value. 
-
-**pre-compile:**
 ```html
-<?fn id="hello">
-    <p>Hello</p>
-</?fn>
-<?call id="hello"/>
-```
-**post-compile:**
-```html
-<p>Hello</p>
-```
-##### More complex example
-
-**pre-compile:**
-```html
-<?fn id="hello">
-    <p>Hello <?get></name></?get></p>
-</?fn>
-
-<?call id="hello">
-    <name>
-        John
-    </name>
+<?call id="function">
+    <arg1>
+        value1
+    </arg1>
+    <arg2>
+        value2
+    </arg2>
 </?call>
 ```
-
-**post-compile:**
-```html
-<p>Hello John</p>
-```
-
-##### Example with logic
-
-**pre-compile:**
-```html
-<?fn id="is_logged_in">
-    <?if cond="?name == John">
-        <p>Hi John</p>
-    </?if>
-    <?else>
-        <p>Not logged in</p>
-        <p>We only like john or mary</p>
-    </?else>
-</?fn>
-```
-
-**post-compile:**
-
- - If the name variable is set to `john`:
-```html
-<p>Hi John</p>
-```
-
-- If the name variable is set to `jane`:
-```html
-<p>Not logged in</p>
-<p>We only like john or mary</p>
-```
-
 
 ## HCM(X)
 
@@ -226,8 +173,8 @@ The `<?hx-on>` tag is used to handle the result of a parent HTMX request. The ta
 ```html
 <div hx-post="/endpoint">
     <?hx-on>
-        <?if cond="?name = John">
-            <p>Welcome <?get></name></?get> </p>
+        <?if cond="request#name = 'John'">
+            <p>Welcome <?get id="request"><name/></?get> </p>
         </?if>   
         <?else>
                 <p>Not logged in</p>
@@ -240,16 +187,16 @@ We need to keep in mind that the cond inside the <?hx-on> is executed on the ser
 <div hx-post="/endpoint">
     <?hx-on>
         <?if>
-            <?fn id="is_logged_in">
-                </?get name="name">
+            <?call id="is_logged_in">
+                <?get id="request">
+                    <name/>
+                </?get>
             </?fn>
         </?if>
         <?then>
-            <p>Welcome <?get></name></?get> </p>
+            <p>Welcome <?get id="request"><name/></?get> </p>
         <?else>
-            <?return>
-                <p>Not logged in</p>
-            </?return>
+            <p>Not logged in</p>
         </?then>
     <?/hx-on>
 </div>

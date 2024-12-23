@@ -4,6 +4,7 @@
 #include "../include/cutils.h"
 #include "../include/hcmx.h"
 #include "../include/context.h"
+#include "../include/server.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,7 +15,7 @@
 #include <netinet/in.h>
 
 
-#define BUFFER_SIZE 1024
+
 
 char* load_web_file(struct server_context* ctx, char* web_root_path, char* path);
 
@@ -23,47 +24,63 @@ struct http_response* handle_request(struct http_request* request, struct server
 
 char* response_str(struct http_response* response);
 
-int server(int port,char* web_root_path) {
 
-    int server_fd;
-    struct sockaddr_in address;
-    char buffer[BUFFER_SIZE];
+struct webserver* create_server(int port, char* web_root_path) {
 
+    struct webserver* srv = calloc(1, sizeof(struct webserver));
+
+    dbg(3,"Creating server context");
     struct server_context* ctx = srv_ctx_create(port, web_root_path);
+    if (ctx == NULL) {
+        msg(FATAL,"Context creation failed");
+        return NULL;
+    }
+    srv->ctx = ctx;
 
-    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
+    dbg(3,"Creating socket");
+    if ((srv->fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
         perror("socket");
         exit(EXIT_FAILURE);
     }
 
     int opt = 1;
-    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
+    if (setsockopt(srv->fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
         perror("setsockopt");
         exit(EXIT_FAILURE);
     }
 
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = htons(port);
+    dbg(3,"Setting Internet Sockets Adress");
+    srv->address.sin_family = AF_INET;
+    srv->address.sin_addr.s_addr = INADDR_ANY;
+    srv->address.sin_port = htons(port);
 
-    if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
+    return srv;
+}
+
+#define BUFFER_SIZE 1024
+
+int run_server(struct webserver* srv) {
+
+    char buffer[BUFFER_SIZE];
+
+    if (bind(srv->fd, (struct sockaddr *)&(srv->address), sizeof(srv->address)) < 0) {
         perror("bind");
         exit(EXIT_FAILURE);
     }
 
-    if (listen(server_fd, 10) < 0) {
+    if (listen(srv->fd, 10) < 0) {
         perror("listen");
         exit(EXIT_FAILURE);
     }
 
-    printf("Server listening on port %d\n", port);
+    dbg(3,"Server listening on port %d\n", srv->ctx->port);
 
     while (1) {
         int client_fd;
-        int addrlen = sizeof(address);
+        int addrlen = sizeof(srv->address);
 
 
-        if ((client_fd = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0) {
+        if ((client_fd = accept(srv->fd, (struct sockaddr *)&srv->address, (socklen_t*)&addrlen)) < 0) {
             perror("accept");
             continue;
         }
@@ -89,7 +106,7 @@ int server(int port,char* web_root_path) {
             continue;
         }
 
-        struct http_response* response = handle_request(request, ctx);
+        struct http_response* response = handle_request(request, srv->ctx);
 
         char* res_str = response_str(response);
 

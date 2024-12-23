@@ -37,6 +37,9 @@ int insert_tag(struct html_tag* parent, struct html_tag* child, int index);
 int pop_tag(struct html_tag* tag);
 char* html_to_string(struct html_tag* html);
 
+// random util
+void visualize_html_tree(struct html_tag* html, int depth);
+
 // Getters  
 struct html_tag* get_tag_by_id(struct html_tag* html,char* id);
 struct html_tag** get_tags_by_name(struct html_tag* html,char* tag_name);

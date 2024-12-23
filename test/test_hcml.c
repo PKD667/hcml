@@ -69,6 +69,7 @@ int test_hcml() {
     {
         char* input = "<html><?set id=\"var\"><in> In variable </in></?set><?get id=\"var\"><in/></?get></html>";
         struct html_tag* root = html_parser(input);
+        visualize_html_tree(root, 0);
         int res = hcml_compile(root);
 
         if (res != 0 || 
