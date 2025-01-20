@@ -72,6 +72,7 @@ Functions :
 #define popchar(str,pos) popcharn(str,pos,strlen(str))
 
 // split and alloc
+//YOU NEED TO PASS A WRITABLE ARRAY. DON'T FREE IT. IT'S USED AS A POOL.
 unsigned int splita (char* string,char delim,char*** dest);
 
 // to count the number of occurences of a char in a string
@@ -79,6 +80,63 @@ unsigned int countc(const char* string,char c);
 
 // check if a string is in an array
 int strinarr( char* val, char** arr,long arrsize);
+
+
+/*
+Hashtable implementation
+Functions : 
+ * hm_create - Create a new hashtable
+ * hm_add - Add a key-value pair to a hashtable
+ * hm_get - Get a value from a hashtable
+ * hm_rm - Remove a key-value pair from a hashtable
+ * hm_visualize - Print the content of a hashtable
+ * hm_hash - Hash a string
+*/
+
+// a key-value pair
+typedef struct {
+    char* key;
+    void* value;
+} pair;
+
+// an item in the hashtable
+// it is basically a list of key-value pairs
+// it is used to handle collisions
+typedef struct {
+    pair* data;
+    unsigned int size;
+    unsigned int capacity;
+} item;
+
+// the hashtable
+typedef struct {
+    item* items;
+    unsigned int capacity;
+} hashtable;
+
+// create a new hashtable
+hashtable* hm_create(unsigned int capacity);
+
+// add a key-value pair to a hashtable
+int hm_add(hashtable* hm, char* key, void* value);
+
+// get a value from a hashtable
+void* hm_get(hashtable* hm, char* key);
+
+// remove a key-value pair from a hashtable
+int hm_rm(hashtable* hm, char* key);
+
+// print the content of a hashtable
+int hm_visualize(hashtable* hm);
+
+// hash a string
+unsigned int hm_hash(hashtable* hm, char* key);
+
+// here we are converting a pair list into a hash table
+hashtable* hm_init(void* kvlist[][2],int size);
+
+
+
 
 /*
 Logging and debug utils
